@@ -9,10 +9,10 @@
     "test:property": "cross-env PROPERTY=1 vitest run --testNamePattern=property",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {},
   "$comment": "dependencies MUST stay empty. See CLAUDE.md hard rule 5.",
   "devDependencies": {
     "@types/node": "^22.7.5",
+    "@vitest/coverage-v8": "^2.1.2",
     "cross-env": "^7.0.3",
     "fast-check": "^3.22.0",
     "pokersolver": "^2.1.4",
