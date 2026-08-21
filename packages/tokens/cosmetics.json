@@ -1,0 +1,62 @@
+{
+  "$comment": "The catalogue of player-chosen cosmetics. Everything here is COSMETIC ONLY — nothing may affect gameplay, information, or timing. Server validates the id is in this list; unknown ids fall back to default.",
+
+  "foldStyle": [
+    { "id":"flick",   "name":"Flick",     "desc":"Quick wrist toss toward the muck" },
+    { "id":"slide",   "name":"Slide",     "desc":"Quiet push forward" },
+    { "id":"slam",    "name":"Slam",      "desc":"Cards hit the felt, small dust puff" },
+    { "id":"toss",    "name":"Toss",      "desc":"High arc, tumbling" },
+    { "id":"burn",    "name":"Burn",      "desc":"Cards singe and curl away" },
+    { "id":"vanish",  "name":"Vanish",    "desc":"Instant — for fast players" },
+    { "id":"reveal",  "name":"Flash",     "desc":"Briefly flips face-down cards' backs at the table (no info)" },
+    { "id":"crumple", "name":"Crumple",   "desc":"For when it was a bad one" }
+  ],
+
+  "chipShuffle": [
+    { "id":"riffle",  "name":"Riffle",    "desc":"Classic two-stack interleave" },
+    { "id":"twirl",   "name":"Twirl",     "desc":"Single chip spun over the knuckles" },
+    { "id":"drop",    "name":"Drop",      "desc":"Chips dropped one at a time onto the stack" },
+    { "id":"bounce",  "name":"Bounce",    "desc":"Stack settles and re-settles" },
+    { "id":"none",    "name":"Still",     "desc":"No idle animation" }
+  ],
+
+  "chipStyle": [
+    { "id":"casino",  "name":"Casino",    "desc":"Clay, edge spots, denomination centre" },
+    { "id":"ceramic", "name":"Ceramic",   "desc":"Flat, full-face print" },
+    { "id":"vintage", "name":"Vintage",   "desc":"Worn edges, muted palette" },
+    { "id":"neon",    "name":"Neon",      "desc":"Glow rim, dark core" },
+    { "id":"minimal", "name":"Minimal",   "desc":"Flat discs, numeral only" }
+  ],
+
+  "throwable": [
+    { "id":"tomato",  "name":"Tomato",    "impact":"splat" },
+    { "id":"pint",    "name":"Pint",      "impact":"splash" },
+    { "id":"pillow",  "name":"Pillow",    "impact":"poof" },
+    { "id":"brick",   "name":"Brick",     "impact":"thud" },
+    { "id":"fish",    "name":"Fish",      "impact":"slap", "note":"the obvious one" },
+    { "id":"confetti","name":"Confetti",  "impact":"burst", "note":"for good beats, not bad" }
+  ],
+
+  "emote": [
+    { "id":"nh",      "name":"Nice hand" },
+    { "id":"ty",      "name":"Thanks" },
+    { "id":"wow",     "name":"Wow" },
+    { "id":"think",   "name":"Thinking" },
+    { "id":"laugh",   "name":"Laughing" },
+    { "id":"cry",     "name":"Crying" },
+    { "id":"clap",    "name":"Clap" },
+    { "id":"shrug",   "name":"Shrug" }
+  ],
+
+  "limits": {
+    "$comment": "Server-enforced. Build these in v1 — someone will abuse throwables on night one.",
+    "throwablePerSeconds": 3,
+    "throwablePerHand": 5,
+    "emotePerSeconds": 2,
+    "chatCharsMax": 280,
+    "chatPerSeconds": 1,
+    "perPlayerMuteSupported": true,
+    "hostCanDisableThrowables": true,
+    "cosmeticsNeverAffectTiming": true
+  }
+}

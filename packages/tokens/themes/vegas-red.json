@@ -1,0 +1,3 @@
+{ "name":"Vegas", "description":"Burgundy felt, brass rail. Loud on purpose.",
+  "overrides": { "felt.base":"{color.felt.burgundy}", "rail.base":"{color.rail.brass}",
+    "surface.app-bg":"{color.neutral.950}", "card.back-bg":"{color.rail.black}" } }

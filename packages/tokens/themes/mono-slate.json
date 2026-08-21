@@ -1,0 +1,3 @@
+{ "name":"Slate", "description":"Neutral grey. Maximum contrast, minimum distraction.",
+  "overrides": { "felt.base":"{color.felt.charcoal}", "rail.base":"{color.rail.chrome}",
+    "surface.app-bg":"{color.neutral.1000}", "felt.texture-opacity":"0" } }

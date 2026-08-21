@@ -1,0 +1,17 @@
+node_modules/
+dist/
+.turbo/
+coverage/
+*.log
+# Runtime game data: hand histories hold hole cards and revealed seeds.
+# Public to players at the table, but not source — never commit a real game.
+apps/server/data/
+.env
+.env.local
+*.db
+*.db-shm
+*.db-wal
+snapshots/
+playwright-report/
+test-results/
+.DS_Store

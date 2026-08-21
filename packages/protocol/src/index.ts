@@ -1,0 +1,201 @@
+import { z } from 'zod';
+
+// The contract between client and server. Every inbound WebSocket message is
+// parsed with ClientMessage before it touches anything (CLAUDE.md hard rule 6).
+// Cards travel as two-character strings ('As', 'Td'); other players' hole cards
+// are ABSENT from payloads, not hidden (hard rule 2).
+
+export const cardSchema = z.string().regex(/^[2-9TJQKA][shdc]$/, 'invalid card');
+export type WireCard = z.infer<typeof cardSchema>;
+
+export const chipsSchema = z.number().int().nonnegative();
+
+export const playerNameSchema = z
+  .string()
+  .trim()
+  .min(1)
+  .max(16)
+  .regex(/^[\p{L}\p{N} _\-'.]+$/u, 'name contains unsupported characters');
+
+export const actionSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('fold') }),
+  z.object({ kind: z.literal('check') }),
+  z.object({ kind: z.literal('call') }),
+  z.object({ kind: z.literal('bet'), to: chipsSchema }),
+  z.object({ kind: z.literal('raise'), to: chipsSchema }),
+  z.object({ kind: z.literal('allIn') }),
+]);
+export type WireAction = z.infer<typeof actionSchema>;
+
+// ---------------------------------------------------------------------------
+// Client → Server
+// ---------------------------------------------------------------------------
+
+export const clientMessageSchema = z.discriminatedUnion('type', [
+  /** First message on every socket. Rejoining players present their token. */
+  z.object({
+    type: z.literal('join'),
+    inviteCode: z.string().min(1).max(64),
+    name: playerNameSchema,
+    avatar: z.number().int().min(0).max(7).optional(),
+    playerToken: z.string().max(128).optional(),
+    /** Player's contribution to the shuffle — see docs/FAIRNESS.md. */
+    clientSeed: z.string().min(1).max(64).optional(),
+  }),
+  z.object({ type: z.literal('sit'), seat: z.number().int().min(0).max(8), buyIn: chipsSchema }),
+  z.object({ type: z.literal('standUp') }),
+  z.object({ type: z.literal('leave') }),
+  /** Rebuy/top-up between hands. Publicly logged for the whole table. */
+  z.object({ type: z.literal('topUp'), amount: chipsSchema }),
+  z.object({ type: z.literal('startHand') }),
+  z.object({ type: z.literal('action'), handNumber: z.number().int().positive(), action: actionSchema }),
+  z.object({ type: z.literal('chat'), text: z.string().trim().min(1).max(300) }),
+  z.object({ type: z.literal('emote'), emote: z.string().min(1).max(16) }),
+  z.object({ type: z.literal('setClientSeed'), seed: z.string().min(1).max(64) }),
+  /** Post-hand 6-second window: show both, one, or muck (wireframe: show one card). */
+  z.object({ type: z.literal('show'), cards: z.enum(['both', 'first', 'second']) }),
+]);
+export type ClientMessage = z.infer<typeof clientMessageSchema>;
+
+// ---------------------------------------------------------------------------
+// Server → Client (documented as schemas so the shapes are testable and the
+// leak fuzzer can walk them; the server constructs these, clients parse them)
+// ---------------------------------------------------------------------------
+
+export const seatViewSchema = z.object({
+  index: z.number().int(),
+  playerId: z.string().nullable(),
+  name: z.string().nullable(),
+  avatar: z.number().int().nullable(),
+  status: z.enum(['empty', 'active', 'folded', 'allIn', 'sittingOut', 'busted']),
+  stack: chipsSchema,
+  committedThisStreet: chipsSchema,
+  isAllIn: z.boolean(),
+  /** True when this seat holds live cards. The cards themselves appear ONLY in
+   *  `holeCards` on the recipient's own seat, or in `shownCards` post-hand. */
+  hasCards: z.boolean(),
+  /** Present only on the recipient's own seat before showdown. */
+  holeCards: z.array(cardSchema).optional(),
+  /** Cards this seat chose to show (or showed at showdown). Public. */
+  shownCards: z.array(cardSchema).optional(),
+  connected: z.boolean(),
+});
+export type SeatView = z.infer<typeof seatViewSchema>;
+
+export const potViewSchema = z.object({
+  amount: chipsSchema,
+  eligibleSeats: z.array(z.number().int()),
+});
+
+export const legalActionsViewSchema = z.object({
+  canFold: z.boolean(),
+  canCheck: z.boolean(),
+  canCall: z.boolean(),
+  callAmount: chipsSchema,
+  canBet: z.boolean(),
+  minBet: chipsSchema,
+  maxBet: chipsSchema,
+  canRaise: z.boolean(),
+  minRaise: chipsSchema,
+  maxRaise: chipsSchema,
+  canAllIn: z.boolean(),
+  allInAmount: chipsSchema,
+});
+
+export const tableViewSchema = z.object({
+  tableName: z.string(),
+  handNumber: z.number().int(),
+  street: z.enum(['idle', 'preflop', 'flop', 'turn', 'river', 'showdown', 'complete']),
+  button: z.number().int(),
+  actingSeat: z.number().int().nullable(),
+  board: z.array(cardSchema),
+  pots: z.array(potViewSchema),
+  potTotal: chipsSchema,
+  currentBet: chipsSchema,
+  blinds: z.object({ smallBlind: chipsSchema, bigBlind: chipsSchema, ante: chipsSchema }),
+  seats: z.array(seatViewSchema),
+  /** The recipient's seat index at this table, or null when spectating. */
+  yourSeat: z.number().int().nullable(),
+  /** What the recipient may legally do right now. Never compute this client-side. */
+  legal: legalActionsViewSchema.nullable(),
+  /** Fairness: commitment for the hand in progress (revealed seed once complete). */
+  fairness: z
+    .object({
+      commit: z.string(),
+      clientSeeds: z.record(z.string()),
+      revealedServerSeed: z.string().nullable(),
+    })
+    .nullable(),
+  hostId: z.string().nullable(),
+});
+export type TableView = z.infer<typeof tableViewSchema>;
+
+export const handEventSchema = z.object({
+  t: z.string(),
+  seat: z.number().int().optional(),
+  street: z.string().optional(),
+  cards: z.array(cardSchema).optional(),
+  amount: chipsSchema.optional(),
+  pot: z.number().int().optional(),
+  blind: z.string().optional(),
+  label: z.string().optional(),
+  action: actionSchema.optional(),
+  handNumber: z.number().int().optional(),
+  button: z.number().int().optional(),
+});
+export type HandEvent = z.infer<typeof handEventSchema>;
+
+export const serverMessageSchema = z.discriminatedUnion('type', [
+  z.object({
+    type: z.literal('welcome'),
+    playerId: z.string(),
+    playerToken: z.string(),
+    tableName: z.string(),
+    isHost: z.boolean(),
+  }),
+  z.object({ type: z.literal('state'), view: tableViewSchema }),
+  z.object({
+    type: z.literal('events'),
+    handNumber: z.number().int(),
+    events: z.array(handEventSchema),
+  }),
+  z.object({
+    type: z.literal('handCommit'),
+    handNumber: z.number().int(),
+    commit: z.string(),
+    clientSeeds: z.record(z.string()),
+  }),
+  z.object({
+    type: z.literal('handReveal'),
+    handNumber: z.number().int(),
+    serverSeed: z.string(),
+    commit: z.string(),
+  }),
+  z.object({
+    type: z.literal('chat'),
+    from: z.string(),
+    seat: z.number().int().nullable(),
+    text: z.string(),
+    at: z.number(),
+  }),
+  z.object({
+    type: z.literal('emote'),
+    from: z.string(),
+    seat: z.number().int().nullable(),
+    emote: z.string(),
+    at: z.number(),
+  }),
+  z.object({
+    type: z.literal('chipLog'),
+    entries: z.array(
+      z.object({
+        at: z.number(),
+        playerName: z.string(),
+        delta: z.number().int(),
+        reason: z.string(),
+      }),
+    ),
+  }),
+  z.object({ type: z.literal('error'), code: z.string(), message: z.string() }),
+]);
+export type ServerMessage = z.infer<typeof serverMessageSchema>;

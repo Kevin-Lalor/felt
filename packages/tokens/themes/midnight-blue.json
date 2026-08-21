@@ -1,0 +1,4 @@
+{ "name":"Midnight", "description":"Low-glare navy. Best for late sessions.",
+  "overrides": { "felt.base":"{color.felt.navy}", "rail.base":"{color.rail.black}",
+    "surface.app-bg":"{color.neutral.1000}", "card.back-bg":"{color.rail.chrome}",
+    "seat.active-ring":"{color.state.info}", "seat.active-glow":"rgba(63,127,191,.35)" } }

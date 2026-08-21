@@ -1,0 +1,33 @@
+{
+  "$comment": "RAW values only. Never referenced by components — only by semantic.json.",
+  "color": {
+    "neutral": {
+      "0":"#ffffff","50":"#f7f7f8","100":"#ececee","200":"#d9d9de","300":"#b8b8c0",
+      "400":"#8e8e99","500":"#6b6b75","600":"#4e4e57","700":"#37373e","800":"#232329",
+      "900":"#151518","950":"#0b0b0d","1000":"#000000"
+    },
+    "felt":   { "green":"#0f5c3f","emerald":"#0a6b4a","navy":"#16324f","slate":"#2b3440","burgundy":"#5a1f2b","charcoal":"#22252a" },
+    "rail":   { "walnut":"#3a2419","mahogany":"#4a1f18","black":"#131316","chrome":"#4a4f57","brass":"#7a5c2e" },
+    "suit":   { "spade":"#16181d","heart":"#c0202e","diamond":"#1b63c4","club":"#137a45","monoDark":"#16181d","monoRed":"#c0202e" },
+    "chip":   { "white":"#f2f2ef","red":"#c93a3a","green":"#2f8f5b","blue":"#2f6fbf","black":"#1a1c20","purple":"#6b3fa0","yellow":"#e0b23a","orange":"#d9762b","pink":"#d96fa0" },
+    "action": { "fold":"#8e5050","check":"#4a6b7a","call":"#2f7a5b","raise":"#b8863a","allIn":"#b8433a" },
+    "state":  { "win":"#2f9e6b","lose":"#a04040","warn":"#c98a2e","info":"#3f7fbf","live":"#3fbf7f" }
+  },
+  "space":  { "0":"0","1":"4px","2":"8px","3":"12px","4":"16px","5":"24px","6":"32px","7":"48px","8":"64px","9":"96px" },
+  "radius": { "none":"0","sm":"4px","md":"8px","lg":"14px","xl":"22px","card":"6px","chip":"50%","full":"9999px" },
+  "font": {
+    "family": { "ui":"'Inter var', system-ui, sans-serif", "numeric":"'Roboto Mono', ui-monospace, monospace", "display":"'Bebas Neue', Impact, sans-serif" },
+    "size":   { "xs":"11px","sm":"13px","md":"15px","lg":"18px","xl":"24px","2xl":"32px","3xl":"48px" },
+    "weight": { "regular":"400","medium":"500","semibold":"600","bold":"700" }
+  },
+  "shadow": {
+    "chip":"0 1px 2px rgba(0,0,0,.4), 0 0 0 1px rgba(0,0,0,.15) inset",
+    "card":"0 2px 6px rgba(0,0,0,.35)",
+    "seat":"0 4px 16px rgba(0,0,0,.3)",
+    "raised":"0 8px 32px rgba(0,0,0,.45)",
+    "glowActive":"0 0 0 3px var(--seat-active-ring), 0 0 20px var(--seat-active-glow)"
+  },
+  "duration": { "instant":"0ms","fast":"120ms","base":"220ms","slow":"400ms","deal":"280ms","chipFlight":"520ms","reveal":"600ms","throw":"700ms" },
+  "ease": { "out":"cubic-bezier(.16,1,.3,1)", "inOut":"cubic-bezier(.65,0,.35,1)", "spring":"cubic-bezier(.34,1.56,.64,1)", "linear":"linear" },
+  "z": { "felt":"0","pot":"10","seat":"20","cards":"30","chips":"40","actionBar":"50","emote":"60","throwable":"70","overlay":"80","modal":"90","toast":"100" }
+}

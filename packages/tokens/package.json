@@ -1,0 +1,7 @@
+{
+  "name": "@poker/tokens",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "build": "tsx build.ts", "dev": "tsx watch build.ts" }
+}

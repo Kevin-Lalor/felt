@@ -1,0 +1,3 @@
+{ "name":"Classic Green", "description":"The felt you picture when someone says poker.",
+  "overrides": { "felt.base":"{color.felt.green}", "rail.base":"{color.rail.walnut}",
+    "surface.app-bg":"{color.neutral.950}", "card.back-bg":"{color.rail.mahogany}" } }

@@ -1,0 +1,76 @@
+name: CI
+on:
+  push: { branches: [main] }
+  pull_request:
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm typecheck
+      - run: pnpm lint
+      - run: pnpm test
+      - run: pnpm build
+
+  fairness:
+    name: fairness invariants
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: No Math.random in the deck path
+        run: |
+          if grep -rn "Math\.random" packages/engine/src apps/server/src; then
+            echo "::error::Math.random() found — hard rule 3"; exit 1
+          fi
+      - name: No skipped fairness or leak tests
+        run: |
+          if grep -rn "\.skip(\|\.todo(\|xit(" packages/engine/__tests__ apps/server/src/__tests__; then
+            echo "::error::A fairness/leak test is skipped — hard rule: never weaken these"; exit 1
+          fi
+      - run: pnpm test:property
+      - run: pnpm test:leak
+
+  coverage:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with: { version: 9 }
+      - uses: actions/setup-node@v4
+        with: { node-version: 22, cache: pnpm }
+      - run: pnpm install --frozen-lockfile
+      - name: Engine coverage must not drop below 95%
+        run: pnpm --filter @poker/engine test -- --coverage.enabled --coverage.thresholds.lines=95 --coverage.thresholds.branches=90
+
+  review:
+    name: independent reviewer
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-latest
+    permissions: { contents: read, pull-requests: write }
+    steps:
+      - uses: actions/checkout@v4
+        with: { fetch-depth: 0 }
+      - uses: anthropics/claude-code-action@v1
+        with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          prompt: |
+            Review this pull request against the hard rules in CLAUDE.md.
+            Use the rubric in .claude/agents/nightly-reviewer.md, priority order preserved.
+            If the diff touches betting/pot/showdown logic, also apply
+            .claude/agents/poker-rules-verifier.md.
+            If it touches apps/server or packages/protocol, also apply
+            .claude/agents/security-reviewer.md.
+            If it touches apps/web, also apply .claude/agents/design-critic.md.
+            Verify each finding before reporting it — try to refute it first.
+            Comment inline. Request changes only for CRITICAL or HIGH findings.

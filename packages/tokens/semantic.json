@@ -1,0 +1,122 @@
+{
+  "$comment": "The ONLY layer components may reference. Values are {core.path} refs or literals. Every key here becomes a CSS custom property.",
+
+  "surface": {
+    "app-bg":        "{color.neutral.950}",
+    "panel-bg":      "{color.neutral.900}",
+    "panel-border":  "{color.neutral.800}",
+    "overlay-scrim": "rgba(0,0,0,.65)"
+  },
+
+  "text": {
+    "primary":   "{color.neutral.50}",
+    "secondary": "{color.neutral.300}",
+    "muted":     "{color.neutral.400}",
+    "on-felt":   "{color.neutral.0}",
+    "on-felt-secondary": "{color.neutral.100}",
+    "$note-felt": "MEASURED: text.muted is 2.47:1 on classic green — FAILS. Never use text.muted or text.secondary directly on felt. On felt, use text.on-felt (8.0:1+ on every theme) or text.on-felt-secondary.",
+    "numeric":   "{color.neutral.0}",
+    "inverse":   "{color.neutral.950}"
+  },
+
+  "felt": {
+    "base":      "{color.felt.green}",
+    "vignette":  "rgba(0,0,0,.35)",
+    "texture-opacity": "0.06",
+    "line":      "rgba(255,255,255,.10)"
+  },
+
+  "rail": {
+    "base":      "{color.rail.walnut}",
+    "highlight": "rgba(255,255,255,.08)",
+    "width":     "{space.5}"
+  },
+
+  "seat": {
+    "bg":            "rgba(0,0,0,.42)",
+    "border":        "rgba(255,255,255,.10)",
+    "radius":        "{radius.lg}",
+    "shadow":        "{shadow.seat}",
+    "active-ring":   "{color.state.live}",
+    "active-glow":   "rgba(63,191,127,.35)",
+    "folded-opacity":"0.38",
+    "allin-ring":    "{color.action.allIn}",
+    "sitting-out-opacity": "0.25",
+    "avatar-size":   "56px",
+    "avatar-radius": "{radius.full}",
+    "name-size":     "{font.size.sm}",
+    "stack-size":    "{font.size.md}",
+    "stack-font":    "{font.family.numeric}"
+  },
+
+  "card": {
+    "face-bg":     "{color.neutral.0}",
+    "face-radius": "{radius.card}",
+    "face-shadow": "{shadow.card}",
+    "back-bg":     "{color.rail.mahogany}",
+    "back-pattern-opacity": "0.5",
+    "width":       "62px",
+    "height":      "88px",
+    "index-size":  "{font.size.lg}",
+    "suit-spade":  "{color.suit.spade}",
+    "suit-heart":  "{color.suit.heart}",
+    "suit-diamond":"{color.suit.monoRed}",
+    "suit-club":   "{color.suit.monoDark}",
+    "$note": "Four-colour mode overrides suit-diamond → color.suit.diamond and suit-club → color.suit.club"
+  },
+
+  "chip": {
+    "size":       "28px",
+    "shadow":     "{shadow.chip}",
+    "edge":       "rgba(255,255,255,.25)",
+    "outline":    "rgba(255,255,255,.85)",
+    "outline-width": "1.5px",
+    "$note": "MEASURED: every chip colour fails 3:1 against every felt on its own (chip red on classic green is 1.58:1). The outline is NOT decorative — it is what makes chips distinguishable from the felt. Never remove it, and include it in the custom-felt contrast check.",
+    "stack-overlap": "-22px",
+    "denom-font": "{font.family.numeric}",
+    "denom-size": "{font.size.xs}"
+  },
+
+  "pot": {
+    "label-color": "{color.neutral.200}",
+    "label-size":  "{font.size.sm}",
+    "amount-size": "{font.size.xl}",
+    "amount-font": "{font.family.numeric}",
+    "side-pot-gap":"{space.2}"
+  },
+
+  "action": {
+    "fold-bg":   "{color.action.fold}",
+    "check-bg":  "{color.action.check}",
+    "call-bg":   "{color.action.call}",
+    "raise-bg":  "{color.action.raise}",
+    "allin-bg":  "{color.action.allIn}",
+    "text":      "{color.neutral.0}",
+    "radius":    "{radius.md}",
+    "height":    "52px",
+    "min-touch": "44px",
+    "gap":       "{space.3}",
+    "fold-separation": "{space.5}",
+    "$note": "fold-separation is the mandatory extra gap between Fold and Call/Check. Do not reduce it."
+  },
+
+  "timer": {
+    "track":  "rgba(255,255,255,.15)",
+    "fill":   "{color.state.live}",
+    "urgent": "{color.state.warn}",
+    "critical":"{color.action.allIn}",
+    "height": "4px"
+  },
+
+  "motion": {
+    "deal":        "{duration.deal}",
+    "chip-flight": "{duration.chipFlight}",
+    "reveal":      "{duration.reveal}",
+    "fold":        "{duration.base}",
+    "throw":       "{duration.throw}",
+    "ui":          "{duration.fast}",
+    "ease-default":"{ease.out}",
+    "ease-bounce": "{ease.spring}",
+    "$note": "Fast mode multiplies every motion.* value by 0.5. prefers-reduced-motion sets them all to duration.instant."
+  }
+}

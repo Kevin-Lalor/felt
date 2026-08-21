@@ -1,0 +1,30 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{
+          "type": "command",
+          "command": "bash -c 'case \"$CLAUDE_TOOL_FILE_PATH\" in *packages/engine*) echo \"[ENGINE] PURE ONLY — no I/O, no Date.now(), no randomness, no deps. Deck and time arrive as parameters. Betting/pot/eval changes need property tests in the same PR.\";; *apps/server*) echo \"[SERVER] Redact before broadcast. Zod-parse then turn-validate every inbound message. crypto.randomInt only.\";; *apps/web/src/components*) echo \"[UI] Semantic tokens only — no hex, no magic px, no raw durations. Add to packages/tokens/semantic.json first.\";; esac'"
+        }]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [{
+          "type": "command",
+          "command": "bash -c 'case \"$CLAUDE_TOOL_FILE_PATH\" in *.ts|*.tsx|*.json) npx prettier --write \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1; npx eslint --fix \"$CLAUDE_TOOL_FILE_PATH\" >/dev/null 2>&1;; esac; exit 0'"
+        }]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [{
+          "type": "command",
+          "command": "bash -c 'pnpm typecheck >/dev/null 2>&1 && pnpm test:engine >/dev/null 2>&1 && echo \"green: typecheck + engine tests pass\" || echo \"RED: typecheck or engine tests are failing — do not end the session here\"'"
+        }]
+      }
+    ]
+  }
+}

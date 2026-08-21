@@ -1,0 +1,13 @@
+{
+  "name": "FELT — home game poker",
+  "short_name": "FELT",
+  "description": "Private, invite-only, play-money poker for friends. Provably fair.",
+  "start_url": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0b0b0d",
+  "theme_color": "#0b0b0d",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
