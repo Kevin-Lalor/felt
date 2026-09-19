@@ -8,7 +8,8 @@
     "start": "tsx src/index.ts",
     "test": "vitest run",
     "test:leak": "cross-env PROPERTY=1 vitest run --testNamePattern=leak",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "test:integrity": "vitest run __tests__/table-integrity.test.ts"
   },
   "dependencies": {
     "@fastify/static": "^8.0.1",

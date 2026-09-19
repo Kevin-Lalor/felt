@@ -90,7 +90,11 @@ packages/engine     Pure NLHE rules. Types, state machine, betting, side pots, h
 packages/protocol   Zod schemas for every client↔server message. The contract. Shared by both.
 packages/tokens     Design tokens → CSS custom properties. Single source of visual truth.
 apps/server         Fastify (HTTP/auth) + ws (table). Owns authoritative state, redaction,
-                    persistence (SQLite/Drizzle), commit-reveal seeds, admin actions, audit log.
+                    commit-reveal seeds, hand history. NOTE: persistence today is an
+                    append-only JSONL file (apps/server/data/history.jsonl). Table state —
+                    seats, stacks, the live hand — is IN MEMORY and does not survive a
+                    restart. SQLite/Drizzle is planned, not built; docs/ARCHITECTURE.md and
+                    ROLLBACK.md describe it as though it exists. Do not build on it.
 apps/web            React 19 + Vite PWA. Renders redacted state, sends intents. Zustand store.
 tools/verify-hand   Standalone verifier a suspicious friend can run outside the app.
 ```
@@ -105,16 +109,28 @@ persists → server redacts per seat → server broadcasts. The client never com
 
 Each hand:
 
-1. Server generates `serverSeed` (32 bytes, CSPRNG) and broadcasts `commit = SHA256(serverSeed)`
-   **before any card is dealt**.
-2. Deck order = Fisher–Yates seeded by `HMAC-SHA256(serverSeed, clientSeeds.join('|') + handNumber)`,
-   where every seated player contributes a `clientSeed` they control.
+1. Commitments are **chained one hand ahead**. `commit = SHA256(serverSeed)` for hand N is minted
+   and broadcast when hand N-1 starts (and for hand 1, in the `Table` constructor). The server
+   therefore commits **before it can know the client seeds** that commitment will be mixed with.
+   This ordering is the whole guarantee: generating the seed at deal time, after reading
+   `player.clientSeed`, lets a modified server grind decks while every published check still
+   passes. `startNextHand()` must only ever CONSUME a commitment, never mint the one it uses.
+2. Deck order = Fisher–Yates over the canonical 52-card deck, driven by an HMAC-SHA256
+   counter-mode stream with rejection sampling:
+   `block[n] = HMAC-SHA256(serverSeed, clientSeeds.join('|') + '+' + handNumber + ':' + n)`,
+   where every seated player contributes a `clientSeed` they control. Clients rotate their seed
+   automatically as each new commitment appears; a pinned seed opts out, and every seat's
+   `postCommit` flag records which.
 3. At hand end, server reveals `serverSeed`. Anyone can check `SHA256(revealed) === commit` and
    re-derive the deck.
+4. Seeds are recorded **positionally** (`[{ seat, name, seed, postCommit }]`), never keyed by a
+   player name — names change on reconnect and that made honest hands unverifiable. Names are
+   frozen for the duration of a hand, and every hand carries a stable `handId`.
 
-Because players contribute seeds, the host cannot pre-compute a favourable deck even in principle.
 **Never change this protocol without updating `tools/verify-hand.ts` and `docs/FAIRNESS.md` in the
 same PR.** A verifier that disagrees with the server is worse than no verifier.
+`apps/server/__tests__/table-integrity.test.ts` drives a real hand and shells out to the verifier,
+so drift fails CI rather than a game night.
 
 ---
 

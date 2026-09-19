@@ -5,6 +5,7 @@ import { useStore } from '../store';
 type Tab = 'chat' | 'log' | 'fair' | 'hands';
 
 type HistoryHand = {
+  handId?: string;
   handNumber: number;
   at: string;
   board: string[];
@@ -12,6 +13,12 @@ type HistoryHand = {
   commit: string;
   serverSeed: string;
 };
+
+/** The history routes are gated on the same invite code as the socket. */
+function historyUrl(): string {
+  const code = localStorage.getItem('felt.inviteCode') ?? '';
+  return `/api/history?code=${encodeURIComponent(code)}`;
+}
 
 export function Rail() {
   const [tab, setTab] = useState<Tab>('chat');
@@ -122,27 +129,38 @@ function FairTab() {
   const view = useStore((s) => s.view);
   const reveal = useStore((s) => s.lastReveal);
   const [seed, setSeed] = useState(localStorage.getItem('felt.clientSeed') ?? '');
+  const [pinned, setPinned] = useState(localStorage.getItem('felt.seedPinned') === '1');
   const fairness = view?.fairness ?? null;
 
   return (
     <div className="rail__body rail__body--scroll">
       <p className="rail__note">
-        Before every deal the server publishes a hash of its secret seed. The deck is derived from
-        that seed <em>plus a seed from every player</em> — so nobody, including the host, can
-        pre-compute the shuffle. After the hand the seed is revealed and anyone can re-derive the
-        whole deck.
+        The server publishes the hash of the secret seed for the <em>next</em> hand as the current
+        one starts — so your seed is always chosen after the commitment it goes into, and the host
+        cannot pick a deck to suit itself. The deck comes from that seed plus a seed from every
+        seated player. After the hand the seed is revealed and anyone can re-derive the whole deck.
       </p>
       {fairness && (
         <>
-          <p className="rail__mono">COMMIT (hand #{view?.handNumber})</p>
-          <p className="rail__hash">{fairness.commit}</p>
-          <p className="rail__mono">PLAYER SEEDS IN THE SHUFFLE</p>
-          {Object.entries(fairness.clientSeeds).map(([name, s]) => (
-            <p key={name} className="chat__line">
-              <span className="chat__from">{name}</span>
-              {s}
-            </p>
-          ))}
+          <p className="rail__mono">COMMIT FOR THE NEXT HAND (#{fairness.nextHandNumber})</p>
+          <p className="rail__hash">{fairness.nextCommit}</p>
+          {fairness.commit && (
+            <>
+              <p className="rail__mono">COMMIT (hand #{fairness.handNumber})</p>
+              <p className="rail__hash">{fairness.commit}</p>
+            </>
+          )}
+          {fairness.clientSeeds.length > 0 && (
+            <>
+              <p className="rail__mono">PLAYER SEEDS IN THIS SHUFFLE</p>
+              {fairness.clientSeeds.map((s) => (
+                <p key={s.seat} className="chat__line">
+                  <span className="chat__from">{s.name}</span>
+                  {s.seed} {s.postCommit ? '✓' : '· set before the commit'}
+                </p>
+              ))}
+            </>
+          )}
           {fairness.revealedServerSeed && (
             <>
               <p className="rail__mono">REVEALED SERVER SEED</p>
@@ -166,16 +184,38 @@ function FairTab() {
             const s = seed.trim();
             if (!s) return;
             localStorage.setItem('felt.clientSeed', s);
+            localStorage.setItem('felt.seedPinned', '1');
+            setPinned(true);
             send({ type: 'setClientSeed', seed: s });
           }}
         >
-          Set
+          Pin
         </button>
       </div>
       <p className="rail__note">
-        Change it any time — it takes effect next hand. To verify a finished hand offline, download{' '}
-        <a href="/api/history" target="_blank" rel="noreferrer">the hand history</a> and run{' '}
-        <code>pnpm verify-hand &lt;hand#&gt;</code> from the repo.
+        {pinned ? (
+          <>
+            Your seed is pinned, so it stays the same every hand. That is fine, but a seed the
+            server already knew when it committed does not constrain it —{' '}
+            <button
+              className="pill"
+              onClick={() => {
+                localStorage.removeItem('felt.seedPinned');
+                setPinned(false);
+              }}
+            >
+              use a fresh seed each hand
+            </button>{' '}
+            for the full guarantee.
+          </>
+        ) : (
+          <>A fresh random seed is generated for you every hand, after the commitment is published. Pin one of your own if you prefer.</>
+        )}
+      </p>
+      <p className="rail__note">
+        To verify a finished hand offline, download{' '}
+        <a href={historyUrl()} target="_blank" rel="noreferrer">the hand history</a> and run{' '}
+        <code>pnpm verify-hand &lt;handId&gt;</code> from the repo.
       </p>
     </div>
   );
@@ -185,7 +225,7 @@ function HandsTab() {
   const [hands, setHands] = useState<HistoryHand[]>([]);
   const [error, setError] = useState(false);
   useEffect(() => {
-    fetch('/api/history')
+    fetch(historyUrl())
       .then((r) => r.json())
       .then((data: HistoryHand[]) => setHands(data.reverse()))
       .catch(() => setError(true));
@@ -200,9 +240,9 @@ function HandsTab() {
       {error && <p className="chat__dealer">Could not load history.</p>}
       {hands.length === 0 && !error && <p className="chat__dealer">No hands yet.</p>}
       {hands.map((hand) => (
-        <div key={hand.handNumber} className="handCard">
+        <div key={hand.handId ?? hand.handNumber} className="handCard">
           <p className="chat__line">
-            <span className="chat__from">#{hand.handNumber}</span>
+            <span className="chat__from">{hand.handId ?? `#${hand.handNumber}`}</span>
             board {hand.board.join(' ') || '(no flop)'}
           </p>
           {hand.seats.map((s) => (

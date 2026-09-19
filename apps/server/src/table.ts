@@ -3,10 +3,16 @@
 // intent → Zod parse (index.ts) → auth/seat/turn check → engine → persist →
 // redact per seat → broadcast.
 
-import { randomBytes } from 'node:crypto';
+import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Chips, Event, HandState, Seat } from '@poker/engine';
 import { DEFAULT_RULES, applyAction, chips, encodeCard, startHand } from '@poker/engine';
-import type { ClientMessage, HandEvent, ServerMessage, TableView } from '@poker/protocol';
+import type {
+  ClientMessage,
+  ClientSeedEntry,
+  HandEvent,
+  ServerMessage,
+  TableView,
+} from '@poker/protocol';
 import { commitOf, deriveDeck, generateServerSeed } from './fairness.js';
 import type { SeatOccupant, TableSnapshot } from './redact.js';
 import { buildView } from './redact.js';
@@ -23,6 +29,9 @@ export type Player = {
   name: string;
   avatar: number;
   clientSeed: string;
+  /** The commitment that was public when this seed was chosen. A seed only
+   *  constrains the server if it was picked AFTER the commitment it goes into. */
+  seedSetAgainstCommit: string;
   isHost: boolean;
   connected: boolean;
   send: (msg: ServerMessage) => void;
@@ -48,11 +57,18 @@ export class Table {
   private readonly stacks: number[] = Array(MAX_SEATS).fill(0);
   private hand: HandState | null = null;
   private handNumber = 0;
+  /** Distinguishes hands across restarts — handNumber alone resets to 0 while
+   *  history.jsonl persists, so it is not unique. */
+  private readonly sessionId = randomBytes(4).toString('hex');
   private button = 0;
   private serverSeed: string | null = null;
   private commit: string | null = null;
   private revealedSeed: string | null = null;
-  private handClientSeeds: Record<string, string> = {};
+  /** Seed and commitment for the NEXT hand, minted one hand ahead so every
+   *  client seed is chosen after the commitment it will be mixed into. */
+  private nextServerSeed: string;
+  private nextCommit: string;
+  private handSeeds: ClientSeedEntry[] = [];
   private shownCards = new Map<number, readonly string[]>();
   private showdownSeats = new Set<number>();
   private pendingShows = new Map<string, PendingShow>();
@@ -67,6 +83,9 @@ export class Table {
     private readonly persistHand: (record: HandRecord) => void,
   ) {
     this.config = config;
+    // Commit to hand 1 before anyone has joined, let alone chosen a seed.
+    this.nextServerSeed = generateServerSeed();
+    this.nextCommit = commitOf(this.nextServerSeed);
   }
 
   // ----------------------------------------------------------------- players
@@ -81,13 +100,18 @@ export class Table {
   }): Player {
     if (input.existingToken) {
       for (const player of this.players.values()) {
-        if (player.token === input.existingToken) {
-          player.connected = true;
-          player.send = input.send;
-          player.name = input.name;
-          this.broadcast();
-          return player;
+        if (!tokensMatch(player.token, input.existingToken)) continue;
+        player.connected = true;
+        player.send = input.send;
+        // Names are FROZEN for the duration of a hand, and always go through
+        // uniqueName. A rename on reconnect used to orphan the hand record's
+        // seeds and make an honest hand fail verification.
+        const seated = this.seatOf(player.playerId) !== -1;
+        if (!(this.handInProgress() && seated) && input.name !== player.name) {
+          player.name = this.uniqueName(input.name, player.playerId);
         }
+        this.broadcast();
+        return player;
       }
     }
     const player: Player = {
@@ -96,6 +120,7 @@ export class Table {
       name: this.uniqueName(input.name),
       avatar: input.avatar,
       clientSeed: input.clientSeed ?? randomBytes(8).toString('hex'),
+      seedSetAgainstCommit: this.nextCommit,
       isHost: input.isHost,
       connected: true,
       send: input.send,
@@ -105,8 +130,10 @@ export class Table {
     return player;
   }
 
-  private uniqueName(name: string): string {
-    const taken = new Set([...this.players.values()].map((p) => p.name));
+  private uniqueName(name: string, exceptPlayerId?: string): string {
+    const taken = new Set(
+      [...this.players.values()].filter((p) => p.playerId !== exceptPlayerId).map((p) => p.name),
+    );
     if (!taken.has(name)) return name;
     for (let i = 2; ; i++) {
       const candidate = `${name.slice(0, 13)} ${i}`;
@@ -143,6 +170,8 @@ export class Table {
         return this.playerAction(player, msg.handNumber, msg.action);
       case 'setClientSeed':
         player.clientSeed = msg.seed.slice(0, 64);
+        // Pin the seed to the commitment that was public when it was chosen.
+        player.seedSetAgainstCommit = this.nextCommit;
         this.broadcast();
         return null;
       case 'show':
@@ -164,6 +193,11 @@ export class Table {
     if (seatIndex < 0 || seatIndex >= MAX_SEATS) return err('badSeat', 'No such seat.');
     if (this.seats[seatIndex] !== null) return err('seatTaken', 'That seat is taken.');
     if (this.seatOf(player.playerId) !== -1) return err('alreadySeated', 'You are already seated.');
+    // A seat vacated mid-hand still holds its cards in this.hand. Taking it
+    // would serve the previous occupant's hole cards to whoever sits down.
+    if (this.handInProgress() && (this.hand?.seats[seatIndex]?.holeCards.length ?? 0) > 0) {
+      return err('seatInHand', 'That seat is still in this hand. Take it once the hand finishes.');
+    }
     if (buyIn < this.config.minBuyIn || buyIn > this.config.maxBuyIn) {
       return err('badBuyIn', `Buy-in must be ${this.config.minBuyIn}–${this.config.maxBuyIn}.`);
     }
@@ -178,7 +212,10 @@ export class Table {
   private standUp(player: Player): ServerMessage | null {
     const seatIndex = this.seatOf(player.playerId);
     if (seatIndex === -1) return err('notSeated', 'You are not seated.');
-    if (this.handInProgress() && this.hand?.seats[seatIndex]?.status === 'active') {
+    // 'allIn' counts as still in the hand: those cards contest the pot, and
+    // completeHand() only pays a seat still held by the same player, so leaving
+    // while all-in silently forfeited the winnings.
+    if (this.handInProgress() && stillInHand(this.hand?.seats[seatIndex]?.status)) {
       return err('inHand', 'Finish the hand first (fold, then stand up).');
     }
     this.seats[seatIndex] = null;
@@ -191,7 +228,7 @@ export class Table {
   private leave(player: Player): ServerMessage | null {
     const seatIndex = this.seatOf(player.playerId);
     if (seatIndex !== -1) {
-      if (this.handInProgress() && this.hand?.seats[seatIndex]?.status === 'active') {
+      if (this.handInProgress() && stillInHand(this.hand?.seats[seatIndex]?.status)) {
         return err('inHand', 'Finish the hand first.');
       }
       this.seats[seatIndex] = null;
@@ -232,13 +269,28 @@ export class Table {
   }
 
   private eligibleSeatCount(): number {
-    return this.seats.filter((id, i) => id !== null && (this.stacks[i] ?? 0) > 0).length;
+    return this.participatingSeats().length;
+  }
+
+  /** The single source of truth for who is in the next hand: seated, holding
+   *  chips, and resolvable to a known player. Deciding "who is dealt in" and
+   *  "whose seed enters the shuffle" from two separate loops let them drift. */
+  private participatingSeats(): { seat: number; player: Player }[] {
+    const out: { seat: number; player: Player }[] = [];
+    for (let i = 0; i < MAX_SEATS; i++) {
+      const playerId = this.seats[i] ?? null;
+      if (playerId === null || (this.stacks[i] ?? 0) <= 0) continue;
+      const player = this.players.get(playerId);
+      if (player) out.push({ seat: i, player });
+    }
+    return out;
   }
 
   // -------------------------------------------------------------- hand lifecycle
 
   private startNextHand(): ServerMessage | null {
-    if (this.eligibleSeatCount() < 2) {
+    const participants = this.participatingSeats();
+    if (participants.length < 2) {
       return err('needPlayers', 'Need at least two seated players with chips.');
     }
     this.clearTimers();
@@ -252,30 +304,41 @@ export class Table {
     // Advance the button to the next occupied seat with chips.
     this.button = this.nextEligibleSeat(this.handNumber === 1 ? MAX_SEATS - 1 : this.button);
 
-    // --- Fairness: commit BEFORE any card exists. Seeds joined in seat order. ---
-    this.serverSeed = generateServerSeed();
-    this.commit = commitOf(this.serverSeed);
-    const seedsInSeatOrder: string[] = [];
-    this.handClientSeeds = {};
-    for (let i = 0; i < MAX_SEATS; i++) {
-      const playerId = this.seats[i] ?? null;
-      if (playerId !== null && (this.stacks[i] ?? 0) > 0) {
-        const player = this.players.get(playerId);
-        if (player) {
-          seedsInSeatOrder.push(player.clientSeed);
-          this.handClientSeeds[player.name] = player.clientSeed;
-        }
-      }
-    }
+    // --- Fairness ------------------------------------------------------------
+    // Consume the commitment minted a hand ago, then immediately mint the one
+    // for the next hand. The server therefore commits BEFORE it can know the
+    // seeds that commitment will be mixed with. Generating the seed here, after
+    // reading player.clientSeed, would let a modified server grind decks and
+    // still pass every published check — see docs/FAIRNESS.md.
+    this.serverSeed = this.nextServerSeed;
+    this.commit = this.nextCommit;
+
+    this.handSeeds = participants.map(({ seat, player }) => ({
+      seat,
+      name: player.name,
+      seed: player.clientSeed,
+      postCommit: player.seedSetAgainstCommit === this.commit,
+    }));
+
+    this.nextServerSeed = generateServerSeed();
+    this.nextCommit = commitOf(this.nextServerSeed);
+
     this.sendToAll({
       type: 'handCommit',
       handNumber: this.handNumber,
       commit: this.commit,
-      clientSeeds: this.handClientSeeds,
+      clientSeeds: this.handSeeds,
+      nextHandNumber: this.handNumber + 1,
+      nextCommit: this.nextCommit,
     });
 
-    const deck = deriveDeck(this.serverSeed, seedsInSeatOrder, this.handNumber);
+    const deck = deriveDeck(
+      this.serverSeed,
+      this.handSeeds.map((s) => s.seed),
+      this.handNumber,
+    );
 
+    const dealtIn = new Set(participants.map((p) => p.seat));
     const seats: Seat[] = [];
     for (let i = 0; i < MAX_SEATS; i++) {
       const playerId = this.seats[i] ?? null;
@@ -283,7 +346,7 @@ export class Table {
       seats.push({
         index: i,
         playerId,
-        status: playerId === null ? 'empty' : stack > 0 ? 'active' : 'busted',
+        status: playerId === null ? 'empty' : dealtIn.has(i) ? 'active' : 'busted',
         stack: chips(Math.max(0, stack)),
         holeCards: [],
         committedThisStreet: chips(0),
@@ -401,20 +464,30 @@ export class Table {
 
     // Full hand history, visible to everyone, downloadable. Transparency is
     // the product (build plan §2.3). Hole cards become public AFTER the hand.
+    const nameAtSeat = new Map(this.handSeeds.map((s) => [s.seat, s.name]));
     const record: HandRecord = {
+      handId: `${this.sessionId}-${this.handNumber}`,
       handNumber: this.handNumber,
       at: new Date().toISOString(),
       tableName: this.config.tableName,
       commit: this.commit,
       serverSeed: this.serverSeed,
-      clientSeeds: this.handClientSeeds,
+      clientSeeds: this.handSeeds.map((s) => ({ ...s })),
       button: hand.button,
-      blinds: { ...this.config },
+      // Only the three blind fields. This used to spread the whole TableConfig
+      // into a field typed as three keys — excess properties from a spread are
+      // not checked, so every record on disk carries buy-in limits too.
+      blinds: {
+        smallBlind: this.config.smallBlind,
+        bigBlind: this.config.bigBlind,
+        ante: this.config.ante,
+      },
       seats: hand.seats
         .filter((s) => s.holeCards.length > 0)
         .map((s) => ({
           seat: s.index,
-          name: this.players.get(s.playerId ?? '')?.name ?? 'unknown',
+          // Frozen at hand start: a rename mid-hand cannot orphan the record.
+          name: nameAtSeat.get(s.index) ?? this.players.get(s.playerId ?? '')?.name ?? 'unknown',
           holeCards: s.holeCards.map(encodeCard),
           finalStatus: s.status,
           stackAfter: s.stack,
@@ -525,13 +598,14 @@ export class Table {
         bigBlind: this.config.bigBlind,
         ante: this.config.ante,
       },
-      fairness: this.commit
-        ? {
-            commit: this.commit,
-            clientSeeds: this.handClientSeeds,
-            revealedServerSeed: this.revealedSeed,
-          }
-        : null,
+      fairness: {
+        handNumber: this.handNumber,
+        commit: this.commit,
+        clientSeeds: this.handSeeds,
+        revealedServerSeed: this.revealedSeed,
+        nextHandNumber: this.handNumber + 1,
+        nextCommit: this.nextCommit,
+      },
     };
   }
 
@@ -560,6 +634,19 @@ export class Table {
   getPlayer(playerId: string): Player | undefined {
     return this.players.get(playerId);
   }
+}
+
+/** Seats whose cards are still live. Folded seats may leave; all-in ones may not. */
+function stillInHand(status: string | undefined): boolean {
+  return status === 'active' || status === 'allIn';
+}
+
+/** Constant-time comparison for the reconnect token. */
+function tokensMatch(a: string, b: string): boolean {
+  const left = Buffer.from(a, 'utf8');
+  const right = Buffer.from(b, 'utf8');
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
 }
 
 function err(code: string, message: string): ServerMessage {

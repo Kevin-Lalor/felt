@@ -29,11 +29,8 @@ export type TableSnapshot = {
   /** Showdown reveals from the finished hand. Public. */
   showdownSeats: ReadonlySet<number>;
   blinds: { smallBlind: number; bigBlind: number; ante: number };
-  fairness: {
-    commit: string;
-    clientSeeds: Readonly<Record<string, string>>;
-    revealedServerSeed: string | null;
-  } | null;
+  /** Mirrors the wire shape exactly so buildView passes it straight through. */
+  fairness: TableView['fairness'];
 };
 
 /** Streets where hole cards are still private. After 'showdown' the engine has
@@ -72,7 +69,13 @@ function buildSeatView(
 
   if (!hand || !handSeat || handSeat.holeCards.length === 0) return base;
 
-  const isViewer = occupant !== null && occupant.playerId === viewerPlayerId;
+  // Identity is NEVER inferred from the seat index alone on this boundary. The
+  // cards belong to the player they were dealt to, not to whoever occupies the
+  // seat now — a seat vacated and retaken mid-hand used to hand the previous
+  // occupant's hole cards straight to the new player.
+  const dealtTo = handSeat.playerId;
+  const isViewer =
+    dealtTo !== null && dealtTo === viewerPlayerId && occupant?.playerId === dealtTo;
   const encoded = handSeat.holeCards.map(encodeCard);
 
   if (isViewer) {

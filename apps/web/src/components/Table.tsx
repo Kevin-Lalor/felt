@@ -97,6 +97,10 @@ export function Table() {
   const lastError = useStore((s) => s.lastError);
   const [sitSeat, setSitSeat] = useState<number | null>(null);
   const [buyIn, setBuyIn] = useState(200);
+  // Every hook must run on every render. This one belongs ABOVE the early
+  // return below — called after it, the hook count changes from 7 to 8 the
+  // moment the first state frame arrives and React throws.
+  const showdownThisHand = useStore((s) => s.showdownThisHand);
 
   if (!view) return <div className="loading">Taking your seat…</div>;
 
@@ -107,7 +111,6 @@ export function Table() {
   const heroSeat = hero !== null ? view.seats[hero] : undefined;
   // Show one / show both — only when your cards weren't already public: either
   // you folded, or the hand ended without a showdown.
-  const showdownThisHand = useStore.getState().showdownThisHand;
   const canShow =
     view.street === 'complete' &&
     heroSeat?.holeCards !== undefined &&

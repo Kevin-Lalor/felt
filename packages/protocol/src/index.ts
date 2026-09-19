@@ -8,7 +8,10 @@ import { z } from 'zod';
 export const cardSchema = z.string().regex(/^[2-9TJQKA][shdc]$/, 'invalid card');
 export type WireCard = z.infer<typeof cardSchema>;
 
-export const chipsSchema = z.number().int().nonnegative();
+/** Chips on the wire. The upper bound is load-bearing: `.int()` alone accepts
+ *  1e21, which reaches `chips()` in the engine and THROWS before applyAction
+ *  gets the chance to refuse it politely. */
+export const chipsSchema = z.number().int().nonnegative().max(1_000_000_000);
 
 export const playerNameSchema = z
   .string()
@@ -26,6 +29,19 @@ export const actionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('allIn') }),
 ]);
 export type WireAction = z.infer<typeof actionSchema>;
+
+/** One player's contribution to a shuffle, pinned to the seat it was used in.
+ *  Recorded POSITIONALLY — never keyed by name, which players can change
+ *  mid-session and which made hand records unverifiable. */
+export const clientSeedEntrySchema = z.object({
+  seat: z.number().int().min(0).max(8),
+  name: z.string(),
+  seed: z.string(),
+  /** True when this seed was set AFTER the commitment it is mixed into was
+   *  published. That ordering is what makes commit-reveal binding. */
+  postCommit: z.boolean(),
+});
+export type ClientSeedEntry = z.infer<typeof clientSeedEntrySchema>;
 
 // ---------------------------------------------------------------------------
 // Client → Server
@@ -118,12 +134,17 @@ export const tableViewSchema = z.object({
   yourSeat: z.number().int().nullable(),
   /** What the recipient may legally do right now. Never compute this client-side. */
   legal: legalActionsViewSchema.nullable(),
-  /** Fairness: commitment for the hand in progress (revealed seed once complete). */
+  /** Fairness. `commit` governs `handNumber`; `nextCommit` is ALREADY published
+   *  for the next hand, so any seed set from now on is provably chosen after the
+   *  commitment it will be mixed into. See docs/FAIRNESS.md. */
   fairness: z
     .object({
-      commit: z.string(),
-      clientSeeds: z.record(z.string()),
+      handNumber: z.number().int(),
+      commit: z.string().nullable(),
+      clientSeeds: z.array(clientSeedEntrySchema),
       revealedServerSeed: z.string().nullable(),
+      nextHandNumber: z.number().int(),
+      nextCommit: z.string(),
     })
     .nullable(),
   hostId: z.string().nullable(),
@@ -163,7 +184,10 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('handCommit'),
     handNumber: z.number().int(),
     commit: z.string(),
-    clientSeeds: z.record(z.string()),
+    clientSeeds: z.array(clientSeedEntrySchema),
+    /** Commitment for the NEXT hand, published as this one starts. */
+    nextHandNumber: z.number().int(),
+    nextCommit: z.string(),
   }),
   z.object({
     type: z.literal('handReveal'),

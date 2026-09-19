@@ -1,8 +1,8 @@
 #!/usr/bin/env tsx
 // Standalone provably-fair verifier. Run it OUTSIDE the app:
 //
-//   pnpm verify-hand <handNumber>            (reads apps/server/data/history.jsonl)
-//   pnpm verify-hand <handNumber> <file>     (any history JSONL you exported)
+//   pnpm verify-hand <handId|handNumber>          (apps/server/data/history.jsonl)
+//   pnpm verify-hand <handId|handNumber> <file>   (any history JSONL you exported)
 //
 // This file deliberately re-implements the derivation instead of importing the
 // server's code — an independent implementation agreeing with the server is the
@@ -14,11 +14,16 @@ import { readFileSync } from 'node:fs';
 import { join, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
+type ClientSeedRecord = { seat: number; name: string; seed: string; postCommit?: boolean };
+
 type HandRecord = {
+  /** Stable id, present from the seat-order fix onward. */
+  handId?: string;
   handNumber: number;
   commit: string;
   serverSeed: string;
-  clientSeeds: Record<string, string>;
+  /** Positional since the seat-order fix; older records keyed seeds by name. */
+  clientSeeds: ClientSeedRecord[] | Record<string, string>;
   button: number;
   seats: { seat: number; name: string; holeCards: string[] }[];
   board: string[];
@@ -83,10 +88,17 @@ const records = readFileSync(file, 'utf8')
   .split('\n')
   .filter((l) => l.trim())
   .map((l) => JSON.parse(l) as HandRecord);
-const record = records.find((r) => r.handNumber === Number(handArg));
+const matches = records.filter((r) => r.handId === handArg || r.handNumber === Number(handArg));
+const record = matches[matches.length - 1];
 if (!record) {
-  console.error(`hand #${handArg} not found in ${file}`);
+  console.error(`hand "${handArg}" not found in ${file}`);
   process.exit(2);
+}
+if (matches.length > 1) {
+  console.log(
+    `\n  note: ${matches.length} hands match "${handArg}" — handNumber restarts at 1 with the\n` +
+      `  server while this file persists. Verifying the most recent; pass a handId to pin one.`,
+  );
 }
 
 let failed = false;
@@ -95,7 +107,7 @@ const check = (label: string, ok: boolean, detail = ''): void => {
   if (!ok) failed = true;
 };
 
-console.log(`\nVerifying hand #${record.handNumber}\n`);
+console.log(`\nVerifying hand ${record.handId ?? `#${record.handNumber}`}\n`);
 
 // 1. The server committed to its seed BEFORE dealing, and revealed it after.
 const recomputedCommit = createHash('sha256').update(record.serverSeed, 'utf8').digest('hex');
@@ -105,11 +117,36 @@ check(
 );
 
 // 2. Re-derive the deck from the revealed seed + every player's seed.
-const seedsInSeatOrder = record.seats.map((s) => {
-  const seed = record.clientSeeds[s.name];
-  if (seed === undefined) throw new Error(`no client seed recorded for ${s.name}`);
-  return seed;
-});
+let seedsInSeatOrder: string[];
+let seedNote: string;
+if (Array.isArray(record.clientSeeds)) {
+  // Positional: the seat each seed was used in is recorded, never inferred
+  // from a player name, which can change mid-session.
+  const ordered = [...record.clientSeeds].sort((a, b) => a.seat - b.seat);
+  seedsInSeatOrder = ordered.map((s) => s.seed);
+  const fresh = ordered.filter((s) => s.postCommit).length;
+  seedNote =
+    fresh === ordered.length
+      ? `all ${ordered.length} seeds were chosen after the commitment was published`
+      : `${fresh} of ${ordered.length} seeds were chosen after the commitment was published` +
+        ' — seats that never rotated their seed are not protected by it';
+} else {
+  // Legacy record: seeds keyed by player name. A rename on reconnect breaks
+  // that join, so fall back to recorded order and say so.
+  const map = record.clientSeeds;
+  const byName = record.seats.map((s) => map[s.name]);
+  if (byName.every((s) => s !== undefined)) {
+    seedsInSeatOrder = byName as string[];
+  } else {
+    seedsInSeatOrder = Object.values(map);
+    console.log(
+      '  note: legacy record — seeds are keyed by player name and at least one name\n' +
+        '  changed after the hand. Falling back to recorded order.',
+    );
+  }
+  seedNote = 'legacy record — predates commit chaining, so the commitment was minted after' +
+    ' these seeds were already known to the server';
+}
 const deck = deriveDeck(record.serverSeed, seedsInSeatOrder, record.handNumber);
 
 // 3. Replay the deal: two cards each, one at a time, clockwise from the button.
@@ -147,6 +184,7 @@ check(
 console.log(
   failed
     ? '\n✗ VERIFICATION FAILED — this hand does not match its commitment. Ask your host hard questions.\n'
-    : '\n✓ Hand verified. The deck was fixed before any card was dealt, and every player’s\n  seed went into the shuffle — the host could not have precomputed this deck.\n',
+    : `\n✓ Hand verified. The revealed seed matches the published commitment and re-derives\n` +
+        `  exactly these cards.\n  Seeds: ${seedNote}.\n`,
 );
 process.exit(failed ? 1 : 0);

@@ -30,18 +30,32 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # Both guards below assert their search paths exist FIRST. grep on a
+      # missing directory exits non-zero, which made the `if` false and the step
+      # pass green — the skipped-test guard pointed at apps/server/src/__tests__,
+      # which has never existed, so it never inspected a single server test.
       - name: No Math.random in the deck path
         run: |
-          if grep -rn "Math\.random" packages/engine/src apps/server/src; then
+          set -euo pipefail
+          for dir in packages/engine/src apps/server/src tools; do
+            test -d "$dir" || { echo "::error::$dir is missing — this guard would pass silently"; exit 1; }
+          done
+          if grep -rn "Math\.random" packages/engine/src apps/server/src tools; then
             echo "::error::Math.random() found — hard rule 3"; exit 1
           fi
       - name: No skipped fairness or leak tests
         run: |
-          if grep -rn "\.skip(\|\.todo(\|xit(" packages/engine/__tests__ apps/server/src/__tests__; then
+          set -euo pipefail
+          for dir in packages/engine/__tests__ apps/server/__tests__; do
+            test -d "$dir" || { echo "::error::$dir is missing — this guard would pass silently"; exit 1; }
+          done
+          if grep -rn "\.skip(\|\.todo(\|xit(" packages/engine/__tests__ apps/server/__tests__; then
             echo "::error::A fairness/leak test is skipped — hard rule: never weaken these"; exit 1
           fi
       - run: pnpm test:property
       - run: pnpm test:leak
+      # Commit ordering, seat-reuse leaks, and server/verifier agreement.
+      - run: pnpm test:integrity
 
   coverage:
     runs-on: ubuntu-latest
@@ -61,18 +75,18 @@ jobs:
     if: github.event_name == 'pull_request'
     runs-on: ubuntu-latest
     permissions: { contents: read, pull-requests: write }
-    # Set the ANTHROPIC_API_KEY repo secret to turn the reviewer on. Without it
+    # Set the CLAUDE_CODE_OAUTH_TOKEN repo secret to turn the reviewer on. Without it
     # the step skips rather than failing the PR — an absent reviewer should
     # never be the thing that blocks a merge.
     env:
-      HAS_ANTHROPIC_KEY: ${{ secrets.ANTHROPIC_API_KEY != '' }}
+      HAS_CLAUDE_TOKEN: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN != '' }}
     steps:
       - uses: actions/checkout@v4
         with: { fetch-depth: 0 }
-      - if: env.HAS_ANTHROPIC_KEY == 'true'
+      - if: env.HAS_CLAUDE_TOKEN == 'true'
         uses: anthropics/claude-code-action@v1
         with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           prompt: |
             Review this pull request against the hard rules in CLAUDE.md.
             Use the rubric in .claude/agents/nightly-reviewer.md, priority order preserved.
