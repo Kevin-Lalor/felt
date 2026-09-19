@@ -62,16 +62,31 @@ function buildSeatView(
   const hand = snapshot.hand;
   const handSeat = hand?.seats[seatIndex];
 
+  // A hand seat describes the player the hand was dealt to. If that is not the
+  // player sitting here NOW, nothing in it describes the current occupant —
+  // not their stack, not their status, not whether they hold cards. Reading it
+  // anyway showed a player who bought in mid-hand a stack of 0 (their seat was
+  // empty when the hand started, so the record says 0), and showed someone who
+  // took a vacated seat the departed player's chips. Same failure as the hole
+  // cards below: identity inferred from the seat index.
+  const ownSeat =
+    handSeat && handSeat.playerId !== null && handSeat.playerId === occupant?.playerId
+      ? handSeat
+      : null;
+
   const base: SeatView = {
     index: seatIndex,
     playerId: occupant?.playerId ?? null,
     name: occupant?.name ?? null,
     avatar: occupant?.avatar ?? null,
-    status: occupant === null ? 'empty' : (handSeat?.status ?? 'sittingOut'),
-    stack: handSeat ? handSeat.stack : (snapshot.idleStacks[seatIndex] ?? 0),
-    committedThisStreet: handSeat?.committedThisStreet ?? 0,
-    isAllIn: handSeat?.isAllIn ?? false,
-    hasCards: (handSeat?.holeCards.length ?? 0) > 0 && handSeat?.status !== 'folded',
+    // Seated but not in this hand — bought in mid-hand, or sat out — is
+    // 'sittingOut'. They are dealt in when the next hand starts.
+    status: occupant === null ? 'empty' : (ownSeat?.status ?? 'sittingOut'),
+    // Not in the hand → the authoritative stack is the table's, not the hand's.
+    stack: ownSeat ? ownSeat.stack : (snapshot.idleStacks[seatIndex] ?? 0),
+    committedThisStreet: ownSeat?.committedThisStreet ?? 0,
+    isAllIn: ownSeat?.isAllIn ?? false,
+    hasCards: (ownSeat?.holeCards.length ?? 0) > 0 && ownSeat?.status !== 'folded',
     skin: occupant?.skin ?? NO_SKIN,
     connected: occupant?.connected ?? false,
   };

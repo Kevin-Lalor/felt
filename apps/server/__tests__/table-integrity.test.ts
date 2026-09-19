@@ -9,6 +9,10 @@
 //      must not serve the previous occupant's hole cards to the new player.
 //   3. Verifiability — a hand record must re-derive under tools/verify-hand.ts
 //      even after a player renames, which name-keyed seeds did not survive.
+//   4. Seat views — a seat must show the player sitting in it now, not the
+//      player the live hand remembers there. Reading hand.seats[i] by index
+//      showed a mid-hand buy-in a stack of 0, and showed whoever took a
+//      vacated seat the departed player's chips.
 
 import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest';
 import { execSync } from 'node:child_process';
@@ -527,5 +531,88 @@ describe('player skins are public cosmetics, and only cosmetics', () => {
     for (const seat of h.table.viewFor(null).seats) {
       expect(Object.keys(seat.skin).sort()).toEqual(['chipColour', 'chipStyle']);
     }
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('a seat shows the player sitting in it, not the hand it remembers', () => {
+  // Found by sitting down in a browser against three bots: the plate read
+  // STACK 0 after a 200 buy-in. buildSeatView read hand.seats[i] whenever a
+  // hand existed, but a hand seat describes the player the hand was DEALT to.
+  // Buy in mid-hand and that record is the empty seat you replaced — stack 0.
+  // Take a seat someone left and it is the departed player's chips. Same
+  // failure as the hole cards: identity inferred from the seat index.
+
+  test('a player who buys in mid-hand sees their buy-in, not the empty seat', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.seat('Cat', 2);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+    expect(h.table.handInProgress()).toBe(true);
+
+    // Seat 4 was empty when the hand started, so it holds no cards and can be
+    // taken immediately — this is the ordinary "walk up to a live table" case.
+    const dan = h.seat('Dan', 4, 150);
+
+    const own = h.table.viewFor(dan.id).seats[4];
+    expect(own?.stack).toBe(150);
+    expect(own?.status).toBe('sittingOut');
+    expect(own?.hasCards).toBe(false);
+    expect(own?.committedThisStreet).toBe(0);
+    expect(own?.isAllIn).toBe(false);
+
+    // And everyone else sees the same number — a stack is public.
+    expect(h.table.viewFor(ann.id).seats[4]?.stack).toBe(150);
+    expect(h.table.viewFor(null).seats[4]?.stack).toBe(150);
+  });
+
+  test('a player who buys in mid-hand is dealt into the next one', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.seat('Cat', 2);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+
+    const dan = h.seat('Dan', 4, 150);
+    h.foldToTheEnd();
+    expect(h.table.handInProgress()).toBe(false);
+
+    // The between-hands delay elapses and the next hand deals.
+    vi.advanceTimersByTime(60_000);
+    expect(h.table.handInProgress()).toBe(true);
+
+    const seat = h.table.viewFor(dan.id).seats[4];
+    expect(seat?.status).not.toBe('sittingOut');
+    expect(seat?.hasCards).toBe(true);
+    expect(seat?.holeCards).toHaveLength(2);
+    // He paid in from 150, not from nothing.
+    expect(seat?.stack).toBeGreaterThan(0);
+    expect(seat?.stack).toBeLessThanOrEqual(150);
+  });
+
+  test('taking a vacated seat never shows the departed player the new player', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    const bob = h.seat('Bob', 1, 200);
+    h.seat('Cat', 2);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+    h.foldToTheEnd();
+
+    // Between hands the completed hand is still the table's `hand`, and it
+    // remembers Bob in seat 1 with the stack he finished on.
+    const bobsFinalStack = h.table.viewFor(bob.id).seats[1]?.stack;
+    expect(bobsFinalStack).toBeGreaterThan(0);
+    expect(h.table.handle(bob.id, { type: 'standUp' } as ClientMessage)).toBeNull();
+
+    const dan = h.seat('Dan', 1, 42);
+
+    const seat = h.table.viewFor(dan.id).seats[1];
+    expect(seat?.name).toBe('Dan');
+    expect(seat?.stack).toBe(42);
+    expect(seat?.stack).not.toBe(bobsFinalStack);
+    expect(seat?.hasCards).toBe(false);
+    expect(seat?.holeCards).toBeUndefined();
   });
 });
