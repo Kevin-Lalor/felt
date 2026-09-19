@@ -1,0 +1,920 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet data-dc-atomics><meta name="design_doc_mode" content="canvas"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin><link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Patrick+Hand&display=swap"><style>
+body{margin:0;background:#efece4;font-family:'Patrick Hand',system-ui,sans-serif;--ac:#b8451f;--ink:#16150f}
+a{color:#2a78d6}a:hover{color:#1a5aa8}
+.dv-turn{padding:40px 44px 32px;border-bottom:1px solid rgba(0,0,0,.08);scroll-margin-top:16px}
+.dv-thd{display:flex;align-items:baseline;gap:10px;margin:0 0 22px}
+.dv-tid{font:600 10px ui-monospace,Menlo,monospace;padding:3px 7px;background:#1a1a1a;color:#fff;border-radius:4px;text-decoration:none}
+.dv-tname{font:600 13px/1.2 system-ui,sans-serif;color:#1a1a1a}
+.dv-opts{display:flex;flex-wrap:wrap;gap:28px;align-items:flex-start;margin:0 0 36px}
+.dv-opt{flex:none;display:flex;flex-direction:column;gap:9px;scroll-margin-top:16px}
+.dv-oid{font:600 10.5px ui-monospace,Menlo,monospace;padding:3px 7px;background:rgba(0,0,0,.08);color:#1a1a1a;border-radius:5px;text-decoration:none;flex:none}
+.dv-olabel{display:flex;align-items:baseline;gap:8px;font:400 11.5px/1.35 system-ui,sans-serif;color:rgba(0,0,0,.55);max-width:900px}
+.dv-card{width:max-content;background:#fff;border:1px solid rgba(0,0,0,.08);border-radius:8px;box-shadow:0 1px 3px rgba(0,0,0,.06);overflow:hidden}
+.dv-opt:target .dv-oid{background:#2a78d6;color:#fff}
+.dv-next{margin:2px 0 0;font:12px/1.6 system-ui,sans-serif;color:rgba(0,0,0,.5)}
+.grp{display:flex;align-items:center;gap:12px;margin:0 0 15px;font:600 11px/1 ui-monospace,Menlo,monospace;letter-spacing:.13em;text-transform:uppercase;color:rgba(0,0,0,.42)}
+.grp::after{content:"";flex:1;height:1px;background:rgba(0,0,0,.12)}
+.f{position:relative;width:900px;min-height:580px;background:#fff;color:var(--ink);font-size:15px;overflow:hidden;display:flex;flex-direction:column}
+.f .shrink{min-width:0}
+.top{display:flex;align-items:center;gap:14px;padding:11px 18px;border-bottom:2px solid var(--ink);flex:none}
+.bx{border:2px solid var(--ink);border-radius:10px 5px 12px 6px}
+.dsh{border:1.6px dashed rgba(22,21,15,.45);border-radius:9px}
+.bt{border:2px solid var(--ink);border-radius:9px 14px 8px 13px;padding:7px 14px;line-height:1;white-space:nowrap;display:inline-flex;align-items:center;justify-content:center;gap:6px}
+.bt.p{background:var(--ink);color:#fff}
+.bt.a{background:var(--ac);border-color:var(--ac);color:#fff}
+.bt.g{border-style:dashed;border-color:rgba(22,21,15,.38);color:rgba(22,21,15,.5)}
+.bt.s{padding:5px 9px;font-size:13px;border-radius:7px 11px 6px 10px}
+.m{font:600 9px/1.35 ui-monospace,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase;opacity:.55}
+.m2{font:600 9.5px/1.35 ui-monospace,Menlo,monospace;letter-spacing:.09em;text-transform:uppercase}
+.ln{height:6px;border-radius:3px;background:rgba(22,21,15,.2)}
+.hatch{background:repeating-linear-gradient(45deg,rgba(22,21,15,.18) 0 2px,transparent 2px 8px)}
+.cal{border:1.6px dashed var(--ac);border-radius:8px;padding:5px 9px;color:var(--ac);font:600 9.5px/1.45 ui-monospace,Menlo,monospace;letter-spacing:.02em;background:rgba(184,69,31,.05)}
+.felt{position:absolute;border:3px solid var(--ink);border-radius:50%;background:repeating-linear-gradient(45deg,rgba(22,21,15,.05) 0 3px,transparent 3px 11px)}
+.st{position:absolute;transform:translate(-50%,-50%);display:flex;gap:6px;align-items:center;background:#fff;border:2px solid var(--ink);border-radius:8px 13px 8px 13px;padding:4px 7px;width:92px}
+.st.e{border-style:dashed;border-color:rgba(22,21,15,.38);justify-content:center;color:rgba(22,21,15,.42);height:34px;box-sizing:border-box}
+.av{border-radius:50%;border:2px solid var(--ink);flex:none;background:repeating-linear-gradient(45deg,rgba(22,21,15,.18) 0 2px,transparent 2px 8px)}
+.cd{width:26px;height:36px;border:2px solid var(--ink);border-radius:4px;background:#fff;flex:none;display:grid;place-items:center;font-size:13px}
+.cd.b{background:repeating-linear-gradient(45deg,rgba(22,21,15,.22) 0 2px,transparent 2px 6px)}
+.sw{width:28px;height:28px;border:2px solid var(--ink);border-radius:6px}
+.row{display:flex;align-items:center;gap:8px}
+.col{display:flex;flex-direction:column}
+.fld{border:2px solid var(--ink);border-radius:7px 12px 7px 12px;padding:7px 10px;display:flex;align-items:center;justify-content:space-between;gap:8px;font-size:14px}
+.tab{padding:6px 13px;border:2px solid var(--ink);border-bottom:none;border-radius:8px 8px 0 0;font-size:13px}
+.tab.on{background:var(--ink);color:#fff}
+.pill{border:2px solid var(--ink);border-radius:20px;padding:3px 10px;font-size:12px;white-space:nowrap}
+</style></helmet>
+
+<section class="dv-turn" id="t2">
+<div class="dv-thd"><a class="dv-tid" href="#t2">2</a><span class="dv-tname">All-time leaderboard — net, won, lost, hands and hours. Three placements: its own page, a page with your card, or a widget on the landing screen.</span></div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="2a"><div class="dv-olabel"><a class="dv-oid" href="#2a">2a</a>Full page, sortable table. Every column the crew will argue about, your row pinned.</div><div class="dv-card"><div class="f">
+<div class="top"><div class="bx hatch" style="width:24px;height:24px;border-radius:6px"></div><div style="font-size:18px">FELT</div><div class="row" style="gap:5px;margin-left:10px"><div class="pill" style="font-size:11px">Lobby</div><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Leaderboard</div><div class="pill" style="font-size:11px">Hands</div></div><div style="flex:1"></div><div class="av" style="width:26px;height:26px"></div></div>
+<div class="col" style="flex:1;padding:16px 22px 18px;gap:12px">
+<div class="row" style="gap:12px;align-items:flex-end"><div class="col" style="gap:3px"><div style="font-size:26px;line-height:1.1">All-time standings</div><div class="m">KYLE'S CREW · 9 REGULARS · SINCE MAR 2025</div></div><div style="flex:1"></div><div class="row" style="gap:6px"><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">All time</div><div class="pill" style="font-size:11px">This year</div><div class="pill" style="font-size:11px">90 days</div></div><div class="fld" style="padding:5px 10px;font-size:13px;width:150px"><span>Kyle's crew</span><span class="m">▾</span></div></div>
+<div class="col bx" style="padding:0;overflow:hidden">
+<div class="row" style="padding:7px 14px;border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05);gap:10px"><span class="m" style="width:26px">#</span><span class="m" style="flex:1">PLAYER</span><span class="m2" style="width:86px;text-align:right">NET ▾</span><span class="m" style="width:86px;text-align:right">WON</span><span class="m" style="width:86px;text-align:right">LOST</span><span class="m" style="width:76px;text-align:right">HANDS</span><span class="m" style="width:62px;text-align:right">HOURS</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">1</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Bea</span></div><span style="width:86px;text-align:right;font-size:15px">+48,200</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">214,600</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">166,400</span><span style="width:76px;text-align:right;font-size:14px">12,480</span><span style="width:62px;text-align:right;font-size:14px">96h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">2</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Kyle <span class="m">HOST</span></span></div><span style="width:86px;text-align:right;font-size:15px">+31,050</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">268,900</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">237,850</span><span style="width:76px;text-align:right;font-size:14px">18,240</span><span style="width:62px;text-align:right;font-size:14px">141h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">3</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Jas</span></div><span style="width:86px;text-align:right;font-size:15px">+12,400</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">96,300</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">83,900</span><span style="width:76px;text-align:right;font-size:14px">6,110</span><span style="width:62px;text-align:right;font-size:14px">47h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px;background:rgba(184,69,31,.07)"><span style="width:26px;font-size:14px">4</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px;border-color:var(--ac)"></div><span style="font-size:15px">You</span></div><span style="width:86px;text-align:right;font-size:15px;color:var(--ac)">+4,860</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">142,700</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">137,840</span><span style="width:76px;text-align:right;font-size:14px">9,020</span><span style="width:62px;text-align:right;font-size:14px">71h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">5</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Nia</span></div><span style="width:86px;text-align:right;font-size:15px">+910</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">54,200</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">53,290</span><span style="width:76px;text-align:right;font-size:14px">3,480</span><span style="width:62px;text-align:right;font-size:14px">26h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">6</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Dev</span></div><span style="width:86px;text-align:right;font-size:15px">−2,340</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">71,600</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">73,940</span><span style="width:76px;text-align:right;font-size:14px">4,905</span><span style="width:62px;text-align:right;font-size:14px">38h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">7</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Ren</span></div><span style="width:86px;text-align:right;font-size:15px">−7,120</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">88,400</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">95,520</span><span style="width:76px;text-align:right;font-size:14px">5,760</span><span style="width:62px;text-align:right;font-size:14px">44h</span></div>
+<div class="row" style="padding:7px 14px;border-bottom:1px solid rgba(22,21,15,.13);gap:10px"><span style="width:26px;font-size:14px">8</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Mo</span></div><span style="width:86px;text-align:right;font-size:15px">−18,900</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">61,050</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">79,950</span><span style="width:76px;text-align:right;font-size:14px">4,120</span><span style="width:62px;text-align:right;font-size:14px">33h</span></div>
+<div class="row" style="padding:7px 14px;gap:10px"><span style="width:26px;font-size:14px">9</span><div class="row" style="flex:1;gap:8px"><div class="av" style="width:24px;height:24px"></div><span style="font-size:15px">Tay</span></div><span style="width:86px;text-align:right;font-size:15px">−69,060</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">39,800</span><span style="width:86px;text-align:right;font-size:14px;opacity:.6">108,860</span><span style="width:76px;text-align:right;font-size:14px">7,300</span><span style="width:62px;text-align:right;font-size:14px">58h</span></div>
+</div>
+<div class="row" style="gap:10px;align-items:center"><div class="m">PLAY CHIPS · NETS ALWAYS SUM TO ZERO</div><div style="flex:1"></div><div class="bt s g">Export CSV</div><div class="bt s">Invite a regular</div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">HOURS PLAYED IS THE PETTIEST COLUMN AND WILL BE THE MOST READ. SORT BY ANY HEADER.</div></sc-if>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="2b"><div class="dv-olabel"><a class="dv-oid" href="#2b">2b</a>Podium + your card — the table is there, but your own all-time numbers get equal weight.</div><div class="dv-card"><div class="f">
+<div class="top"><div class="bx hatch" style="width:24px;height:24px;border-radius:6px"></div><div style="font-size:18px">FELT</div><div class="row" style="gap:5px;margin-left:10px"><div class="pill" style="font-size:11px">Lobby</div><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Leaderboard</div></div><div style="flex:1"></div><div class="m">ALL TIME ▾</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;padding:16px 20px;gap:12px;border-right:2px solid var(--ink)">
+<div class="row" style="gap:12px;align-items:flex-end;padding:2px 0 4px">
+<div class="col" style="align-items:center;gap:5px;flex:1"><div class="av" style="width:40px;height:40px"></div><div style="font-size:14px">Kyle</div><div class="bx" style="width:100%;height:44px;display:grid;place-items:center;font-size:17px">2nd</div><div class="m2">+31,050</div><div class="m" style="opacity:.45">141H · 18,240 HANDS</div></div>
+<div class="col" style="align-items:center;gap:5px;flex:1"><div class="av" style="width:54px;height:54px;border-width:3px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div style="font-size:16px">Bea</div><div class="bx" style="width:100%;height:70px;display:grid;place-items:center;font-size:23px;background:var(--ink);color:#fff">1st</div><div class="m2" style="color:var(--ac)">+48,200</div><div class="m" style="opacity:.45">96H · 12,480 HANDS</div></div>
+<div class="col" style="align-items:center;gap:5px;flex:1"><div class="av" style="width:36px;height:36px"></div><div style="font-size:14px">Jas</div><div class="bx" style="width:100%;height:32px;display:grid;place-items:center;font-size:16px">3rd</div><div class="m2">+12,400</div><div class="m" style="opacity:.45">47H · 6,110 HANDS</div></div>
+</div>
+<div class="col bx" style="padding:0;overflow:hidden">
+<div class="row" style="padding:6px 12px;border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05);gap:9px"><span class="m" style="width:22px">#</span><span class="m" style="flex:1">PLAYER</span><span class="m2" style="width:74px;text-align:right">NET</span><span class="m" style="width:66px;text-align:right">HANDS</span><span class="m" style="width:48px;text-align:right">HRS</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.13);gap:9px;background:rgba(184,69,31,.07)"><span style="width:22px;font-size:14px">4</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px;border-color:var(--ac)"></div><span style="font-size:14px">You</span></div><span style="width:74px;text-align:right;font-size:14px;color:var(--ac)">+4,860</span><span style="width:66px;text-align:right;font-size:14px">9,020</span><span style="width:48px;text-align:right;font-size:14px">71</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.13);gap:9px"><span style="width:22px;font-size:14px">5</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Nia</span></div><span style="width:74px;text-align:right;font-size:14px">+910</span><span style="width:66px;text-align:right;font-size:14px">3,480</span><span style="width:48px;text-align:right;font-size:14px">26</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.13);gap:9px"><span style="width:22px;font-size:14px">6</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Dev</span></div><span style="width:74px;text-align:right;font-size:14px">−2,340</span><span style="width:66px;text-align:right;font-size:14px">4,905</span><span style="width:48px;text-align:right;font-size:14px">38</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.13);gap:9px"><span style="width:22px;font-size:14px">7</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Ren</span></div><span style="width:74px;text-align:right;font-size:14px">−7,120</span><span style="width:66px;text-align:right;font-size:14px">5,760</span><span style="width:48px;text-align:right;font-size:14px">44</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.13);gap:9px"><span style="width:22px;font-size:14px">8</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Mo</span></div><span style="width:74px;text-align:right;font-size:14px">−18,900</span><span style="width:66px;text-align:right;font-size:14px">4,120</span><span style="width:48px;text-align:right;font-size:14px">33</span></div>
+<div class="row" style="padding:6px 12px;gap:9px"><span style="width:22px;font-size:14px">9</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Tay</span></div><span style="width:74px;text-align:right;font-size:14px">−69,060</span><span style="width:66px;text-align:right;font-size:14px">7,300</span><span style="width:48px;text-align:right;font-size:14px">58</span></div>
+</div>
+<div class="m">TAP ANY NAME FOR THEIR PROFILE, NOTES AND HEAD-TO-HEAD</div>
+</div>
+<div class="col" style="width:288px;flex:none;padding:16px 18px;gap:11px">
+<div class="row" style="gap:10px"><div class="av" style="width:40px;height:40px;border-width:3px"></div><div class="col" style="gap:2px"><div style="font-size:19px">Donk Kong</div><div class="m">4TH OF 9 · SINCE MAR 2025</div></div></div>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px">
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">ALL-TIME NET</div><div style="font-size:22px;line-height:1.1;color:var(--ac)">+4,860</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">HOURS PLAYED</div><div style="font-size:22px;line-height:1.1">71h</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">TOTAL WON</div><div style="font-size:19px;line-height:1.1">142,700</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">TOTAL LOST</div><div style="font-size:19px;line-height:1.1">137,840</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">HANDS PLAYED</div><div style="font-size:19px;line-height:1.1">9,020</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">PER HOUR</div><div style="font-size:19px;line-height:1.1">+68</div></div>
+</div>
+<div class="col dsh" style="padding:10px 12px;gap:6px;flex:1;min-height:0"><div class="m">NET OVER TIME</div><div class="hatch" style="flex:1;border-radius:5px;min-height:64px"></div><div class="m" style="opacity:.45;text-align:center">LINE CHART PLACEHOLDER</div></div>
+<div class="col dsh" style="padding:9px 11px;gap:4px"><div class="m">HEAD TO HEAD</div><div style="font-size:13px;line-height:1.45;opacity:.7">Best against Tay <b>+21,400</b><br>Worst against Bea <b>−16,900</b></div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">MOST PEOPLE OPEN THIS TO CHECK THEMSELVES, NOT THE RANKING.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="2c"><div class="dv-olabel"><a class="dv-oid" href="#2c">2c</a>Not a destination — a standings rail on the landing screen, folded into <a class="dv-oid" href="#1b">1b</a>.</div><div class="dv-card"><div class="f">
+<div class="top"><div class="bx hatch" style="width:26px;height:26px;border-radius:6px"></div><div style="font-size:19px">FELT</div><div style="flex:1"></div><div class="fld" style="padding:5px 10px;width:160px"><span style="opacity:.45">Table code</span><span class="m">↵</span></div><div class="av" style="width:26px;height:26px"></div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;padding:20px 24px;gap:13px;border-right:2px solid var(--ink)">
+<div style="font-size:30px;line-height:1.1">Somebody's always got a game going.</div>
+<div class="row" style="gap:10px"><div class="bt a" style="font-size:16px;padding:10px 22px">Deal a new game</div><div class="bt" style="font-size:16px;padding:10px 22px">Watch a table</div></div>
+<div class="m2">TABLES RUNNING NOW</div>
+<div class="bx row" style="padding:10px 12px;gap:10px"><div class="row"><div class="av" style="width:24px;height:24px"></div><div class="av" style="width:24px;height:24px;margin-left:-8px"></div><div class="av" style="width:24px;height:24px;margin-left:-8px"></div></div><div class="col" style="flex:1;gap:2px"><div style="font-size:15px">Kyle's Thursday Game</div><div class="m">CASH · 1/2 · 7 OF 9 SEATED</div></div><div class="bt s a">Sit</div></div>
+<div class="bx row" style="padding:10px 12px;gap:10px"><div class="row"><div class="av" style="width:24px;height:24px"></div><div class="av" style="width:24px;height:24px;margin-left:-8px"></div></div><div class="col" style="flex:1;gap:2px"><div style="font-size:15px">Turbo 9-max · Late reg open</div><div class="m">TOURNEY · LVL 4 · 12 LEFT</div></div><div class="bt s a">Reg</div></div>
+<div class="dsh row" style="padding:10px 12px;justify-content:center;color:rgba(22,21,15,.45);font-size:14px">+ 4 more from your circle</div>
+<div style="flex:1"></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">CHEAPEST TO BUILD. NO ROOM FOR WON / LOST SPLIT — ONLY NET FITS.</div></sc-if>
+</div>
+<div class="col" style="width:300px;flex:none;padding:18px 20px;gap:11px">
+<div class="row"><div class="m2">ALL-TIME STANDINGS</div><div style="flex:1"></div><div class="m">SEE ALL ↗</div></div>
+<div class="col bx" style="padding:0;overflow:hidden">
+<div class="row" style="padding:6px 11px;border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05);gap:8px"><span class="m" style="flex:1">PLAYER</span><span class="m" style="width:66px;text-align:right">NET</span><span class="m" style="width:46px;text-align:right">HRS</span></div>
+<div class="row" style="padding:7px 11px;border-bottom:1px solid rgba(22,21,15,.13);gap:8px"><span class="m2" style="width:14px">1</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Bea</span></div><span style="width:66px;text-align:right;font-size:14px">+48,200</span><span style="width:46px;text-align:right;font-size:14px">96</span></div>
+<div class="row" style="padding:7px 11px;border-bottom:1px solid rgba(22,21,15,.13);gap:8px"><span class="m2" style="width:14px">2</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Kyle</span></div><span style="width:66px;text-align:right;font-size:14px">+31,050</span><span style="width:46px;text-align:right;font-size:14px">141</span></div>
+<div class="row" style="padding:7px 11px;border-bottom:1px solid rgba(22,21,15,.13);gap:8px"><span class="m2" style="width:14px">3</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Jas</span></div><span style="width:66px;text-align:right;font-size:14px">+12,400</span><span style="width:46px;text-align:right;font-size:14px">47</span></div>
+<div class="row" style="padding:7px 11px;border-bottom:1px solid rgba(22,21,15,.13);gap:8px;background:rgba(184,69,31,.07)"><span class="m2" style="width:14px;color:var(--ac)">4</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px;border-color:var(--ac)"></div><span style="font-size:14px">You</span></div><span style="width:66px;text-align:right;font-size:14px;color:var(--ac)">+4,860</span><span style="width:46px;text-align:right;font-size:14px">71</span></div>
+<div class="row" style="padding:7px 11px;gap:8px;opacity:.55"><span class="m2" style="width:14px">9</span><div class="row" style="flex:1;gap:7px"><div class="av" style="width:21px;height:21px"></div><span style="font-size:14px">Tay</span></div><span style="width:66px;text-align:right;font-size:14px">−69,060</span><span style="width:46px;text-align:right;font-size:14px">58</span></div>
+</div>
+<div class="col dsh" style="padding:10px 12px;gap:6px"><div class="m">YOU, ALL TIME</div><div class="row" style="gap:12px"><div class="col" style="gap:1px"><div style="font-size:17px">9,020</div><div class="m" style="opacity:.5">HANDS</div></div><div class="col" style="gap:1px"><div style="font-size:17px">71h</div><div class="m" style="opacity:.5">PLAYED</div></div><div class="col" style="gap:1px"><div style="font-size:17px;color:var(--ac)">+4,860</div><div class="m" style="opacity:.5">NET</div></div></div></div>
+<div class="col dsh" style="padding:10px 12px;gap:5px"><div class="m">LAST NIGHT</div><div style="font-size:13px;line-height:1.45;opacity:.7">Bea took 4,500 off the table and moved into 1st. Tay is still funding this crew.</div></div>
+<div style="flex:1"></div>
+<div class="bt" style="font-size:14px">Full leaderboard</div>
+</div>
+</div>
+</div></div></div>
+
+</div>
+<p class="dv-next">Try next: "put <a class="dv-oid" href="#2b">2b</a>'s stat cards into the post-game screen <a class="dv-oid" href="#1u">1u</a>" · "add a per-session leaderboard, not just all-time" · "make <a class="dv-oid" href="#2a">2a</a> filterable by cash vs tournament"</p>
+</section>
+
+<section class="dv-turn" id="t1">
+<div class="dv-thd"><a class="dv-tid" href="#t1">1</a><span class="dv-tname">First pass — 21 desktop frames across all six screens. Play-money, 6–9 seats, invite-code entry, persistent sidebar.</span></div>
+
+<div class="grp">Welcome / landing</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1a"><div class="dv-olabel"><a class="dv-oid" href="#1a">1a</a>Code-first — the page has one job: eat the code the host texted you.</div><div class="dv-card"><div class="f">
+<div class="top"><div class="bx hatch" style="width:26px;height:26px;border-radius:6px"></div><div style="font-size:19px">FELT</div><div style="flex:1"></div><div class="m">HOW IT WORKS</div><div class="m">HOST A GAME</div><div class="bt s">Sign in</div></div>
+<div class="col" style="flex:1;align-items:center;justify-content:center;gap:16px;padding:0 60px">
+<div style="font-size:38px;line-height:1.1;text-align:center;max-width:600px;text-wrap:pretty">Your Friday game. Minus the folding table.</div>
+<div style="font-size:16px;opacity:.6">Play chips only. Nine seats. Nothing to download.</div>
+<div class="row" style="gap:8px;margin-top:12px">
+<div class="bx" style="width:44px;height:56px;display:grid;place-items:center;font-size:22px">K</div><div class="bx" style="width:44px;height:56px;display:grid;place-items:center;font-size:22px">Y</div><div class="bx" style="width:44px;height:56px;display:grid;place-items:center;font-size:22px">L</div><div class="bx" style="width:44px;height:56px;display:grid;place-items:center;font-size:22px">3</div><div class="bx" style="width:44px;height:56px;display:grid;place-items:center;font-size:22px">7</div><div class="bx dsh" style="width:44px;height:56px"></div>
+</div>
+<div class="m">6-CHARACTER TABLE CODE</div>
+<div class="bt a" style="font-size:18px;padding:11px 40px;margin-top:4px">Pull up a chair</div>
+<div style="font-size:14px;opacity:.6;text-decoration:underline">No code? Deal your own game →</div>
+</div>
+<div class="row" style="border-top:2px solid var(--ink);padding:12px 22px;gap:38px">
+<div class="row"><div class="bx hatch" style="width:20px;height:20px;border-radius:50%"></div><span style="font-size:13px;opacity:.65">6–9 seats a table</span></div>
+<div class="row"><div class="bx hatch" style="width:20px;height:20px;border-radius:50%"></div><span style="font-size:13px;opacity:.65">Cash or tournament</span></div>
+<div class="row"><div class="bx hatch" style="width:20px;height:20px;border-radius:50%"></div><span style="font-size:13px;opacity:.65">Chat, emotes, throwables</span></div>
+<div style="flex:1"></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">MOST ARRIVALS ARE INVITED,<br>NOT BROWSING</div></sc-if>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1b"><div class="dv-olabel"><a class="dv-oid" href="#1b">1b</a>Live rail — you land on games already running, so the room feels warm.</div><div class="dv-card"><div class="f">
+<div class="top"><div class="bx hatch" style="width:26px;height:26px;border-radius:6px"></div><div style="font-size:19px">FELT</div><div style="flex:1"></div><div class="fld" style="padding:5px 10px;width:170px"><span style="opacity:.45">Table code</span><span class="m">↵</span></div><div class="bt s p">Sign in</div></div>
+<div class="row" style="flex:1;align-items:stretch;gap:0">
+<div class="col" style="width:380px;padding:34px 30px;gap:14px;justify-content:center;border-right:2px solid var(--ink)">
+<div style="font-size:34px;line-height:1.08;text-wrap:pretty">Somebody's always got a game going.</div>
+<div style="font-size:15px;opacity:.6;line-height:1.5">Play chips. Real needling. Sit down in about nine seconds.</div>
+<div class="row" style="margin-top:10px;gap:10px"><div class="bt a" style="font-size:16px;padding:10px 22px">Deal a new game</div><div class="bt" style="font-size:16px;padding:10px 22px">Watch a table</div></div>
+</div>
+<div class="col" style="flex:1;padding:20px 24px;gap:11px">
+<div class="row"><div class="m2">TABLES RUNNING NOW</div><div style="flex:1"></div><div class="m">FRIENDS ONLY ▾</div></div>
+<div class="bx row" style="padding:11px 13px;gap:11px"><div class="row" style="gap:-6px"><div class="av" style="width:26px;height:26px"></div><div class="av" style="width:26px;height:26px;margin-left:-9px"></div><div class="av" style="width:26px;height:26px;margin-left:-9px"></div></div><div class="col" style="flex:1;gap:3px"><div style="font-size:15px">Kyle's Thursday Game</div><div class="m">CASH · 1/2 · 7 OF 9 SEATED</div></div><div class="bt s a">Sit</div></div>
+<div class="bx row" style="padding:11px 13px;gap:11px"><div class="row"><div class="av" style="width:26px;height:26px"></div><div class="av" style="width:26px;height:26px;margin-left:-9px"></div></div><div class="col" style="flex:1;gap:3px"><div style="font-size:15px">Turbo 9-max · Late reg open</div><div class="m">TOURNEY · LVL 4 · 12 LEFT · REG THRU LVL 6</div></div><div class="bt s a">Reg</div></div>
+<div class="bx row" style="padding:11px 13px;gap:11px"><div class="row"><div class="av" style="width:26px;height:26px"></div><div class="av" style="width:26px;height:26px;margin-left:-9px"></div><div class="av" style="width:26px;height:26px;margin-left:-9px"></div></div><div class="col" style="flex:1;gap:3px"><div style="font-size:15px">Deep Stack Sunday</div><div class="m">CASH · 2/5 · FULL — 2 ON WAITLIST</div></div><div class="bt s">Watch</div></div>
+<div class="dsh row" style="padding:11px 13px;justify-content:center;color:rgba(22,21,15,.45);font-size:14px">+ 4 more from your circle</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal" style="margin-top:auto">RISK: EMPTY STATE ON NIGHT ONE.<br>NEEDS A "NOBODY'S PLAYING YET" FALLBACK.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1c"><div class="dv-olabel"><a class="dv-oid" href="#1c">1c</a>Two doors — host or join, nothing else on the page.</div><div class="dv-card"><div class="f">
+<div class="top" style="justify-content:center;border-bottom:none;padding-top:16px"><div class="bx hatch" style="width:24px;height:24px;border-radius:6px"></div><div style="font-size:19px">FELT</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;align-items:center;justify-content:center;gap:15px;padding:0 46px;border-right:2px dashed rgba(22,21,15,.4)">
+<div class="bx hatch" style="width:150px;height:86px;border-radius:50%"></div>
+<div style="font-size:28px">Deal a game</div>
+<div style="font-size:14px;opacity:.6;text-align:center;line-height:1.5;max-width:250px">Pick cash or tournament, set the blinds, text the code around.</div>
+<div class="bt a" style="font-size:17px;padding:11px 30px">Set up a table</div>
+<div class="m">TAKES ABOUT 30 SECONDS</div>
+</div>
+<div class="col" style="flex:1;align-items:center;justify-content:center;gap:15px;padding:0 46px">
+<div class="row" style="gap:5px"><div class="cd" style="width:34px;height:46px">A</div><div class="cd b" style="width:34px;height:46px"></div></div>
+<div style="font-size:28px">Join a game</div>
+<div style="font-size:14px;opacity:.6;text-align:center;line-height:1.5;max-width:250px">Got a code from a friend? That's the whole login.</div>
+<div class="bx row" style="padding:9px 12px;width:220px;justify-content:space-between"><span style="font-size:19px;letter-spacing:.22em;opacity:.35">– – – – – –</span><span class="m">PASTE</span></div>
+<div class="bt" style="font-size:17px;padding:11px 30px">Take a seat</div>
+</div>
+</div>
+<div class="row" style="border-top:2px solid var(--ink);padding:10px 22px"><div class="m">PLAY CHIPS ONLY · NO CASH VALUE</div><div style="flex:1"></div><sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">CLEANEST, BUT NO PROOF ANYONE ELSE IS HERE</div></sc-if></div>
+</div></div></div>
+
+</div>
+
+<div class="grp">Login / account setup</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1d"><div class="dv-olabel"><a class="dv-oid" href="#1d">1d</a>Three-step column — code, player, seat. Guest by default, account optional.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div style="flex:1"></div><div class="m">KYLE'S THURSDAY GAME · CASH 1/2</div></div>
+<div class="row" style="justify-content:center;gap:0;padding:20px 0 6px">
+<div class="row"><div class="av" style="width:24px;height:24px;background:var(--ink)"></div><span style="font-size:13px;margin-left:7px">Code</span></div>
+<div style="width:56px;height:2px;background:var(--ink);margin:0 12px"></div>
+<div class="row"><div class="av" style="width:24px;height:24px;background:var(--ink)"></div><span style="font-size:13px;margin-left:7px">Your player</span></div>
+<div style="width:56px;height:2px;background:rgba(22,21,15,.25);margin:0 12px"></div>
+<div class="row" style="opacity:.4"><div class="av" style="width:24px;height:24px"></div><span style="font-size:13px;margin-left:7px">Sit down</span></div>
+</div>
+<div class="col" style="flex:1;align-items:center;justify-content:center;gap:0;padding:0 60px">
+<div class="bx col" style="width:470px;padding:24px 28px;gap:16px">
+<div style="font-size:24px">Who are we playing against?</div>
+<div class="col" style="gap:8px"><div class="m2">PICK A FACE</div><div class="row" style="gap:10px"><div class="av" style="width:48px;height:48px;border-width:3px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div class="av" style="width:48px;height:48px"></div><div class="av" style="width:48px;height:48px"></div><div class="av" style="width:48px;height:48px"></div><div class="av dsh" style="width:48px;height:48px;background:none;display:grid;place-items:center;font-size:20px">+</div></div></div>
+<div class="col" style="gap:8px"><div class="m2">TABLE NAME</div><div class="fld"><span>Donk Kong</span><span class="m">12/16</span></div><div style="font-size:12px;opacity:.5">This is what the rail will be yelling. Choose wisely.</div></div>
+<div class="dsh row" style="padding:9px 11px;justify-content:space-between"><span style="font-size:14px">Save this player for next time</span><div class="bx" style="width:36px;height:20px;border-radius:12px;position:relative"><div style="position:absolute;left:2px;top:2px;width:12px;height:12px;border-radius:50%;background:var(--ink)"></div></div></div>
+<div class="bt a" style="font-size:17px;padding:11px">Take a seat →</div>
+<div style="font-size:12px;opacity:.5;text-align:center">Playing as a guest tonight is fine. Chips don't follow you home.</div>
+</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal" style="margin-top:14px">NO EMAIL, NO PASSWORD — ACCOUNT IS AN UPSELL, NOT A GATE</div></sc-if>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1e"><div class="dv-olabel"><a class="dv-oid" href="#1e">1e</a>Modal over the room — see the table you're joining before you're asked for anything.</div><div class="dv-card"><div class="f">
+<div style="position:absolute;inset:0;opacity:.28">
+<div class="top"><div style="font-size:18px">FELT</div></div>
+<div style="position:relative;height:520px"><div class="felt" style="inset:60px 150px 120px">
+<div class="col" style="position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);align-items:center;gap:6px"><div class="m2">POT 640</div><div class="row" style="gap:5px"><div class="cd">9♠</div><div class="cd">Q♦</div><div class="cd">4♣</div></div></div>
+<div class="st" style="left:50%;top:100%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:-3%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:36%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:64%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:103%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st e" style="left:88%;top:88%"><span class="m">OPEN</span></div>
+</div></div>
+</div>
+<div class="col" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:420px;background:#fff;padding:26px 28px;gap:15px;border:2px solid var(--ink);border-radius:12px 6px 14px 8px;box-shadow:9px 9px 0 rgba(22,21,15,.14)">
+<div class="row" style="gap:11px"><div class="av" style="width:40px;height:40px"></div><div class="col" style="gap:3px"><div style="font-size:19px">Kyle invited you</div><div class="m">SEAT 8 IS OPEN · SEVEN ALREADY IN</div></div></div>
+<div class="row" style="gap:7px;flex-wrap:wrap"><div class="pill">Cash</div><div class="pill">1 / 2 play chips</div><div class="pill">Buy-in 100–400</div><div class="pill">30s to act</div></div>
+<div class="col" style="gap:7px"><div class="m2">NAME AT THIS TABLE</div><div class="fld"><span style="opacity:.4">e.g. Donk Kong</span></div></div>
+<div class="col" style="gap:7px"><div class="m2">FACE</div><div class="row" style="gap:9px"><div class="av" style="width:38px;height:38px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div class="av" style="width:38px;height:38px"></div><div class="av" style="width:38px;height:38px"></div><div class="av" style="width:38px;height:38px"></div><div class="av dsh" style="width:38px;height:38px;background:none;display:grid;place-items:center">+</div></div></div>
+<div class="bt a" style="font-size:17px;padding:11px">Sit in seat 8 — buy in 200</div>
+<div class="row" style="justify-content:center;gap:16px"><span style="font-size:13px;opacity:.55;text-decoration:underline">Just watch first</span><span style="font-size:13px;opacity:.55;text-decoration:underline">Sign in</span></div>
+</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal" style="position:absolute;right:16px;bottom:14px;max-width:250px">THE ROOM IS THE SALES PITCH.<br>ALSO DOUBLES AS SPECTATOR ENTRY.</div></sc-if>
+</div></div></div>
+
+<div class="dv-opt" id="1f"><div class="dv-olabel"><a class="dv-oid" href="#1f">1f</a>Seat-first — pick where you're sitting, then who you are.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div style="flex:1"></div><div class="m">CODE KYL37 ACCEPTED ✓</div><div class="bt s g">Leave</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;padding:22px 26px;gap:14px;border-right:2px solid var(--ink)">
+<div style="font-size:24px">Grab a seat</div>
+<div style="position:relative;flex:1"><div class="felt" style="inset:34px 44px 44px">
+<div class="col" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);align-items:center;gap:4px"><div class="m2">KYLE'S THURSDAY GAME</div><div class="m">CASH · 1/2</div></div>
+<div class="st" style="left:50%;top:100%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Mo</div><div class="m">380</div></div></div>
+<div class="st e" style="left:12%;top:88%"><span class="m">SEAT 2</span></div>
+<div class="st" style="left:-3%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Ren</div><div class="m">210</div></div></div>
+<div class="st e" style="left:9%;top:14%"><span class="m">SEAT 4</span></div>
+<div class="st" style="left:36%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Kyle</div><div class="m">610</div></div></div>
+<div class="st" style="left:64%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Bea</div><div class="m">155</div></div></div>
+<div class="st e" style="left:91%;top:14%;border-color:var(--ac);color:var(--ac)"><span class="m2" style="color:var(--ac)">SEAT 7 ✓</span></div>
+<div class="st" style="left:103%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Jas</div><div class="m">440</div></div></div>
+<div class="st e" style="left:88%;top:88%"><span class="m">SEAT 9</span></div>
+</div></div>
+<div class="m">CLICK ANY DASHED SEAT · 4 OPEN</div>
+</div>
+<div class="col" style="width:310px;padding:22px 24px;gap:15px">
+<div style="font-size:22px">Now, who are you?</div>
+<div class="col" style="gap:8px"><div class="m2">FACE</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px"><div class="av" style="width:100%;aspect-ratio:1;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div class="av" style="width:100%;aspect-ratio:1"></div><div class="av" style="width:100%;aspect-ratio:1"></div><div class="av" style="width:100%;aspect-ratio:1"></div><div class="av" style="width:100%;aspect-ratio:1"></div><div class="av" style="width:100%;aspect-ratio:1"></div><div class="av" style="width:100%;aspect-ratio:1"></div><div class="av dsh" style="width:100%;aspect-ratio:1;background:none;display:grid;place-items:center">+</div></div></div>
+<div class="col" style="gap:7px"><div class="m2">NAME</div><div class="fld"><span style="opacity:.4">Donk Kong</span></div></div>
+<div class="col" style="gap:7px"><div class="m2">BUY IN</div><div class="row" style="gap:7px"><div class="pill">100</div><div class="pill" style="background:var(--ink);color:#fff">200</div><div class="pill">400 max</div></div></div>
+<div style="flex:1"></div>
+<div class="bt a" style="font-size:17px;padding:11px">Sit down in seat 7</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">SEAT CHOICE = POSITION CHOICE.<br>POKER PLAYERS WILL CARE.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+</div>
+
+<div class="grp">Lobby setup — cash &amp; tournament (each option carries a different host model)</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1g"><div class="dv-olabel"><a class="dv-oid" href="#1g">1g</a>Tabbed form + live invite card. <b style="color:rgba(0,0,0,.75)">Host model A: full admin</b> — approves buy-ins, kicks, pauses.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div style="flex:1"></div><div class="m">DRAFT · NOT LIVE YET</div><div class="bt s g">Discard</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;padding:16px 24px 20px;gap:13px;border-right:2px solid var(--ink)">
+<div class="row" style="gap:5px;border-bottom:2px solid var(--ink);margin:0 -24px;padding:0 24px"><div class="tab on">Cash game</div><div class="tab">Tournament</div><div style="flex:1"></div></div>
+<div class="col" style="gap:6px"><div class="m2">TABLE NAME</div><div class="fld"><span>Kyle's Thursday Game</span><span class="m">EDIT</span></div></div>
+<div class="row" style="gap:12px">
+<div class="col" style="flex:1;gap:6px"><div class="m2">SEATS</div><div class="fld"><span class="m2">–</span><span style="font-size:17px">9</span><span class="m2">+</span></div></div>
+<div class="col" style="flex:1;gap:6px"><div class="m2">BLINDS</div><div class="fld"><span>1 / 2</span><span class="m">▾</span></div></div>
+<div class="col" style="flex:1;gap:6px"><div class="m2">ACTION TIMER</div><div class="fld"><span>30s + 2 banks</span><span class="m">▾</span></div></div>
+</div>
+<div class="row" style="gap:12px">
+<div class="col" style="flex:1;gap:6px"><div class="m2">MIN BUY-IN</div><div class="fld"><span>100 · 50bb</span></div></div>
+<div class="col" style="flex:1;gap:6px"><div class="m2">MAX BUY-IN</div><div class="fld"><span>400 · 200bb</span></div></div>
+<div class="col" style="flex:1;gap:6px"><div class="m2">REBUYS</div><div class="fld"><span>Unlimited</span><span class="m">▾</span></div></div>
+</div>
+<div class="col" style="gap:7px"><div class="m2">HOUSE RULES</div>
+<div class="row" style="gap:7px;flex-wrap:wrap"><div class="pill" style="background:var(--ink);color:#fff">Straddle on</div><div class="pill">Run it twice</div><div class="pill" style="background:var(--ink);color:#fff">Show one, show all</div><div class="pill">Seven-deuce bounty</div><div class="pill">Ante</div></div></div>
+<div class="col bx" style="padding:11px 13px;gap:8px"><div class="m2">HOST POWERS — YOU</div>
+<div class="row" style="justify-content:space-between"><span style="font-size:14px">Approve every buy-in &amp; rebuy</span><div class="bx" style="width:34px;height:19px;border-radius:12px;position:relative"><div style="position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--ink)"></div></div></div>
+<div class="row" style="justify-content:space-between"><span style="font-size:14px">Kick / mute players</span><div class="bx" style="width:34px;height:19px;border-radius:12px;position:relative"><div style="position:absolute;right:2px;top:2px;width:11px;height:11px;border-radius:50%;background:var(--ink)"></div></div></div>
+<div class="row" style="justify-content:space-between"><span style="font-size:14px">Pause the game for a smoke</span><div class="bx" style="width:34px;height:19px;border-radius:12px;position:relative"><div style="position:absolute;left:2px;top:2px;width:11px;height:11px;border-radius:50%;background:rgba(22,21,15,.3)"></div></div></div></div>
+</div>
+<div class="col" style="width:266px;padding:18px 20px;gap:12px">
+<div class="m2">WHAT THEY'LL SEE</div>
+<div class="bx col" style="padding:15px;gap:10px;box-shadow:6px 6px 0 rgba(22,21,15,.12)">
+<div class="row" style="gap:9px"><div class="av" style="width:32px;height:32px"></div><div class="col" style="gap:2px"><div style="font-size:16px">Kyle's Thursday Game</div><div class="m">HOSTED BY KYLE</div></div></div>
+<div class="bx hatch" style="height:64px;border-radius:50%"></div>
+<div class="row" style="gap:6px;flex-wrap:wrap"><div class="pill" style="font-size:11px">Cash 1/2</div><div class="pill" style="font-size:11px">9 seats</div><div class="pill" style="font-size:11px">100–400</div></div>
+<div class="fld" style="justify-content:center;font-size:20px;letter-spacing:.2em">KYL37</div>
+</div>
+<div class="bt" style="font-size:14px">Copy invite link</div>
+<div style="flex:1"></div>
+<div class="bt a" style="font-size:17px;padding:11px">Open the room</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">HOST MODEL A — NOTHING HAPPENS WITHOUT KYLE. GOOD FOR A REGULAR CREW, BAD IF HE DROPS OFF WIFI.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1h"><div class="dv-olabel"><a class="dv-oid" href="#1h">1h</a>Presets first, details only if you want them. <b style="color:rgba(0,0,0,.75)">Host model B: lightweight</b> — creator can start &amp; end, that's it.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div style="flex:1"></div><div class="m">STEP 1 OF 1</div></div>
+<div class="col" style="flex:1;padding:16px 28px;gap:11px">
+<div style="font-size:26px">What kind of night is it?</div>
+<div class="row" style="gap:11px;flex-wrap:wrap">
+<div class="bx col" style="width:158px;padding:12px;gap:5px;background:var(--ink);color:#fff"><div style="font-size:17px">Friday Cash</div><div class="m2" style="opacity:.75">1/2 · 100–400 · 9 SEATS</div></div>
+<div class="bx col" style="width:158px;padding:12px;gap:5px"><div style="font-size:17px">Turbo Tourney</div><div class="m2" style="opacity:.6">5 MIN LEVELS · ~50 MIN</div></div>
+<div class="bx col" style="width:158px;padding:12px;gap:5px"><div style="font-size:17px">Deep Stack</div><div class="m2" style="opacity:.6">300BB · 45S TO ACT</div></div>
+<div class="bx col" style="width:158px;padding:12px;gap:5px"><div style="font-size:17px">Bounty KO</div><div class="m2" style="opacity:.6">HALF THE BUY-IN ON HEADS</div></div>
+<div class="bx dsh col" style="width:110px;padding:12px;gap:5px;justify-content:center;align-items:center;color:rgba(22,21,15,.5)"><div style="font-size:17px">+ Custom</div></div>
+</div>
+<div class="bx col" style="padding:15px 17px;gap:11px">
+<div class="row"><div class="m2">FRIDAY CASH — TAP ANY VALUE TO CHANGE IT</div><div style="flex:1"></div><div class="m">RESET</div></div>
+<div style="display:grid;grid-template-columns:repeat(3,1fr);gap:10px">
+<div class="dsh col" style="padding:8px 10px;gap:3px"><div class="m">BLINDS</div><div class="row" style="justify-content:space-between"><span style="font-size:17px">1 / 2</span><span class="m">✎</span></div></div>
+<div class="dsh col" style="padding:8px 10px;gap:3px"><div class="m">BUY-IN RANGE</div><div class="row" style="justify-content:space-between"><span style="font-size:17px">100 – 400</span><span class="m">✎</span></div></div>
+<div class="dsh col" style="padding:8px 10px;gap:3px"><div class="m">TIME TO ACT</div><div class="row" style="justify-content:space-between"><span style="font-size:17px">30 sec</span><span class="m">✎</span></div></div>
+<div class="dsh col" style="padding:8px 10px;gap:3px"><div class="m">REBUYS</div><div class="row" style="justify-content:space-between"><span style="font-size:17px">Unlimited</span><span class="m">✎</span></div></div>
+<div class="dsh col" style="padding:8px 10px;gap:3px"><div class="m">STRADDLE</div><div class="row" style="justify-content:space-between"><span style="font-size:17px">Allowed</span><span class="m">✎</span></div></div>
+<div class="dsh col" style="padding:8px 10px;gap:3px"><div class="m">WHO CAN JOIN</div><div class="row" style="justify-content:space-between"><span style="font-size:17px">Code only</span><span class="m">✎</span></div></div>
+</div>
+</div>
+<div class="dsh row" style="padding:10px 14px;justify-content:space-between"><span style="font-size:15px">Advanced — ante, run-it-twice, chat filters, waitlist</span><span class="m">SHOW ▾</span></div>
+<div class="col bx" style="padding:12px 15px;gap:9px">
+<div class="row"><div class="m2">SEATS</div><div style="flex:1"></div><div style="font-size:17px">9</div></div>
+<div class="row" style="gap:0;align-items:center"><div style="flex:1;height:3px;background:var(--ink)"></div><div class="av" style="width:18px;height:18px;background:var(--ink)"></div></div>
+<div class="row" style="justify-content:space-between"><span class="m">6</span><span class="m">7</span><span class="m">8</span><span class="m">9</span></div>
+</div>
+<div style="flex:1"></div>
+<div class="row" style="gap:12px;align-items:center"><div class="bt a" style="font-size:18px;padding:12px 28px">Open the room</div><div class="fld" style="flex:1;justify-content:space-between"><span style="font-size:18px;letter-spacing:.2em">KYL37</span><span class="m">COPY LINK</span></div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">HOST MODEL B — CREATOR STARTS AND ENDS THE GAME. BUY-INS AUTO-APPROVE. FEWER STALLS, LESS CONTROL.</div></sc-if>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1i"><div class="dv-olabel"><a class="dv-oid" href="#1i">1i</a>Everything on one sheet, tournament tab. <b style="color:rgba(0,0,0,.75)">Host model C: no host</b> — settings lock when the table ready-ups.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div class="row" style="gap:5px;margin-left:12px;align-self:flex-end;margin-bottom:-13px"><div class="tab">Cash game</div><div class="tab on">Tournament</div></div><div style="flex:1"></div><div class="m">EST. 1H 20M · 9 PLAYERS</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="width:412px;padding:16px 20px;gap:11px;border-right:2px solid var(--ink)">
+<div class="row"><div class="m2">BLIND STRUCTURE</div><div style="flex:1"></div><div class="row" style="gap:5px"><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Turbo</div><div class="pill" style="font-size:11px">Regular</div><div class="pill" style="font-size:11px">Slow</div></div></div>
+<div class="bx col" style="padding:0;overflow:hidden">
+<div class="row" style="padding:7px 12px;border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05)"><span class="m" style="width:44px">LVL</span><span class="m" style="flex:1">BLINDS</span><span class="m" style="width:56px">ANTE</span><span class="m" style="width:56px">LENGTH</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.15)"><span style="width:44px;font-size:14px">1</span><span style="flex:1;font-size:14px">10 / 20</span><span style="width:56px;font-size:14px">—</span><span style="width:56px;font-size:14px">5 min</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.15)"><span style="width:44px;font-size:14px">2</span><span style="flex:1;font-size:14px">15 / 30</span><span style="width:56px;font-size:14px">—</span><span style="width:56px;font-size:14px">5 min</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.15)"><span style="width:44px;font-size:14px">3</span><span style="flex:1;font-size:14px">25 / 50</span><span style="width:56px;font-size:14px">5</span><span style="width:56px;font-size:14px">5 min</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.15)"><span style="width:44px;font-size:14px">4</span><span style="flex:1;font-size:14px">50 / 100</span><span style="width:56px;font-size:14px">10</span><span style="width:56px;font-size:14px">5 min</span></div>
+<div class="row" style="padding:6px 12px;border-bottom:1px solid rgba(22,21,15,.15)"><span style="width:44px;font-size:14px">5</span><span style="flex:1;font-size:14px">75 / 150</span><span style="width:56px;font-size:14px">15</span><span style="width:56px;font-size:14px">5 min</span></div>
+<div class="row" style="padding:6px 12px;background:rgba(184,69,31,.07)"><span style="width:44px;font-size:14px">6</span><span style="flex:1;font-size:14px">100 / 200</span><span style="width:56px;font-size:14px">25</span><span class="m2" style="width:100px;color:var(--ac)">REG CLOSES</span></div>
+<div class="row dsh" style="padding:6px 12px;border:none;border-top:1px dashed rgba(22,21,15,.3);justify-content:center;color:rgba(22,21,15,.45);font-size:13px">+ 12 more levels · edit structure</div>
+</div>
+<div class="row" style="gap:10px"><div class="col dsh" style="flex:1;padding:8px 10px;gap:2px"><div class="m">BREAK</div><div style="font-size:15px">5 min after lvl 6</div></div><div class="col dsh" style="flex:1;padding:8px 10px;gap:2px"><div class="m">STARTING STACK</div><div style="font-size:15px">10,000 · 100bb</div></div></div>
+</div>
+<div class="col" style="flex:1;padding:16px 20px;gap:11px">
+<div class="row" style="gap:10px"><div class="col" style="flex:1;gap:5px"><div class="m2">BUY-IN</div><div class="fld"><span>1,000 chips</span></div></div><div class="col" style="flex:1;gap:5px"><div class="m2">FIELD</div><div class="fld"><span>6 – 9</span><span class="m">▾</span></div></div></div>
+<div class="col bx" style="padding:11px 13px;gap:8px">
+<div class="row" style="justify-content:space-between"><span style="font-size:15px">Late registration</span><span class="m2">THRU LEVEL 6</span></div>
+<div class="row" style="justify-content:space-between"><span style="font-size:15px">Rebuys</span><span class="m2">2 MAX · LVL 1–6</span></div>
+<div class="row" style="justify-content:space-between"><span style="font-size:15px">Add-on at the break</span><span class="m2">1 × DOUBLE STACK</span></div>
+<div class="row" style="justify-content:space-between"><span style="font-size:15px">Bust-out bounty</span><span class="m2" style="opacity:.4">OFF</span></div>
+</div>
+<div class="col" style="gap:7px"><div class="m2">PAYOUTS · 9 RUNNERS</div>
+<div class="col bx" style="padding:11px 13px;gap:8px">
+<div class="row" style="gap:9px"><span style="width:26px;font-size:14px">1st</span><div style="flex:1;height:14px;background:var(--ink);border-radius:3px;max-width:50%"></div><span class="m2">50%</span></div>
+<div class="row" style="gap:9px"><span style="width:26px;font-size:14px">2nd</span><div style="flex:1;height:14px;background:rgba(22,21,15,.5);border-radius:3px;max-width:30%"></div><span class="m2">30%</span></div>
+<div class="row" style="gap:9px"><span style="width:26px;font-size:14px">3rd</span><div style="flex:1;height:14px;background:rgba(22,21,15,.3);border-radius:3px;max-width:20%"></div><span class="m2">20%</span></div>
+<div class="row dsh" style="padding:6px 8px;justify-content:center;font-size:12px;color:rgba(22,21,15,.5)">Winner-take-all · Flat top 4 · Custom</div>
+</div></div>
+<div style="flex:1"></div>
+<div class="col dsh" style="padding:10px 12px;gap:6px"><div class="m2">NO HOST — TABLE VOTE</div><div style="font-size:13px;opacity:.65;line-height:1.45">Anyone seated can edit until 2 of 3 ready-up. Then settings lock and the clock starts.</div><div class="row" style="gap:5px"><div class="av" style="width:20px;height:20px;background:var(--ink)"></div><div class="av" style="width:20px;height:20px;background:var(--ink)"></div><div class="av" style="width:20px;height:20px"></div><div class="av" style="width:20px;height:20px"></div><span class="m" style="margin-left:4px">2 / 4 READY</span></div></div>
+<div class="bt a" style="font-size:17px;padding:11px">I'm ready</div>
+</div>
+</div>
+</div></div></div>
+
+</div>
+
+<div class="grp">The table — 9-max oval, hero bottom-centre. Sizing controls &amp; pot odds are the priority.</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1j"><div class="dv-olabel"><a class="dv-oid" href="#1j">1j</a>One tabbed rail on the right, full-width action bar. Sizing chips + slider + type-in, always visible.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="pill" style="font-size:11px">Cash 1/2</div><div class="pill" style="font-size:11px">Hand #214</div><div style="flex:1"></div><div class="m">STACK 1,240 · 620BB</div><div class="bt s g">Sit out</div><div class="bt s">Leave</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col shrink" style="flex:1">
+<div style="position:relative;flex:1">
+<div class="felt" style="inset:34px 76px 74px">
+<div class="col" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);align-items:center;gap:7px">
+<div class="m2">POT 1,850</div>
+<div class="row" style="gap:5px"><div class="cd">A♠</div><div class="cd">7♦</div><div class="cd">2♣</div><div class="cd">K♥</div><div class="cd b"></div></div>
+<div class="m">TURN · RIVER TO COME</div>
+</div>
+<div class="row" style="position:absolute;left:50%;top:66%;transform:translateX(-50%);gap:4px"><div class="av" style="width:13px;height:13px"></div><div class="av" style="width:13px;height:13px"></div><div class="av" style="width:13px;height:13px"></div><span class="m">BETS IN FRONT</span></div>
+<div class="st" style="left:50%;top:100%;width:150px;border-width:3px;padding:6px 9px"><div class="av" style="width:34px;height:34px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px">You · BTN</div><div class="m2">1,240</div></div><div class="row" style="gap:3px"><div class="cd" style="width:22px;height:31px">Q♠</div><div class="cd" style="width:22px;height:31px">J♠</div></div></div>
+<div class="st" style="left:-3%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Ren</div><div class="m">210</div></div></div>
+<div class="st" style="left:36%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Kyle</div><div class="m">610</div></div></div>
+<div class="st" style="left:64%;top:-4%;border-color:var(--ac);border-width:3px"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Bea</div><div class="m2" style="color:var(--ac)">BET 450</div></div></div>
+<div class="st" style="left:103%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Jas</div><div class="m">440</div></div></div>
+<div class="st" style="left:88%;top:88%;opacity:.45"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Mo</div><div class="m">FOLDED</div></div></div>
+<sc-if value="{{ s7 }}" hint-placeholder-val="{{ true }}"><div class="st" style="left:12%;top:88%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Dev</div><div class="m">905</div></div></div></sc-if>
+<sc-if value="{{ s8 }}" hint-placeholder-val="{{ true }}"><div class="st" style="left:9%;top:14%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Nia</div><div class="m">330</div></div></div></sc-if>
+<sc-if value="{{ s9 }}" hint-placeholder-val="{{ true }}"><div class="st e" style="left:91%;top:14%"><span class="m">OPEN</span></div></sc-if>
+</div>
+<div class="col" style="position:absolute;left:10px;bottom:8px;gap:6px"><div class="bt s g" style="border-radius:50%;width:34px;height:34px;padding:0">☺</div><div class="bt s g" style="border-radius:50%;width:34px;height:34px;padding:0">✱</div><div class="m">EMOTE / THROW</div></div>
+</div>
+<div class="col" style="flex:none;height:132px;border-top:2px solid var(--ink);padding:11px 16px;gap:9px">
+<div class="row" style="gap:12px">
+<div class="pill" style="border-color:var(--ac);color:var(--ac);font-size:12px">Pot odds 3.1 : 1 — call 450 to win 1,850</div>
+<div class="pill" style="font-size:12px">You need 24% equity</div>
+<div style="flex:1"></div>
+<div class="row" style="gap:7px"><div class="m2">0:18</div><div class="bx" style="width:96px;height:9px;border-radius:6px;overflow:hidden"><div style="width:58%;height:100%;background:var(--ac)"></div></div></div>
+</div>
+<div class="row bx shrink" style="padding:6px 10px;gap:9px">
+<div class="pill" style="font-size:11px;padding:2px 8px;flex:none">½</div><div class="pill" style="font-size:11px;padding:2px 8px;flex:none">⅔</div><div class="pill" style="font-size:11px;padding:2px 8px;flex:none;background:var(--ink);color:#fff">Pot</div><div class="pill" style="font-size:11px;padding:2px 8px;flex:none">All in</div>
+<div style="flex:1;min-width:40px;height:3px;background:var(--ink);position:relative"><div class="av" style="width:17px;height:17px;background:var(--ink);position:absolute;left:62%;top:-7px"></div></div>
+<div class="fld" style="padding:3px 8px;width:74px;flex:none;justify-content:center;font-size:15px">1,300</div>
+</div>
+<div class="row" style="gap:10px">
+<div class="bt" style="flex:1">Fold</div>
+<div class="bt" style="flex:1">Call 450</div>
+<div class="bt a" style="flex:1.6">Raise to 1,300</div>
+</div>
+</div>
+</div>
+<div class="col" style="width:250px;flex:none;border-left:2px solid var(--ink)">
+<div class="row" style="border-bottom:2px solid var(--ink)"><div class="tab on" style="flex:1;border-radius:0;border:none;text-align:center;justify-content:center;display:flex">Chat</div><div class="tab" style="flex:1;border-radius:0;border:none;border-left:2px solid var(--ink);text-align:center;display:flex;justify-content:center">Hands</div><div class="tab" style="flex:1;border-radius:0;border:none;border-left:2px solid var(--ink);text-align:center;display:flex;justify-content:center">Notes</div><div class="tab" style="flex:1;border-radius:0;border:none;border-left:2px solid var(--ink);text-align:center;display:flex;justify-content:center">Stats</div></div>
+<div class="col" style="flex:1;padding:12px;gap:10px;overflow:hidden">
+<div class="col" style="gap:3px"><div class="m">KYLE</div><div style="font-size:14px;line-height:1.35">sir that is a min-raise. in this economy?</div></div>
+<div class="col" style="gap:3px"><div class="m">BEA</div><div style="font-size:14px;line-height:1.35">snap. paying you off, sorry in advance</div></div>
+<div class="col" style="gap:3px"><div class="m">DEALER</div><div style="font-size:13px;opacity:.55;line-height:1.35">Ren folded · Mo folded · Bea bets 450</div></div>
+<div class="col" style="gap:3px"><div class="m">JAS</div><div style="font-size:14px;line-height:1.35">someone throw a chair at him</div></div>
+<div class="row dsh" style="padding:7px 9px;gap:6px;justify-content:center;color:rgba(22,21,15,.5);font-size:12px">Mo threw a rubber chicken at You</div>
+<div style="flex:1"></div>
+<div class="row" style="gap:5px;flex-wrap:wrap"><div class="pill" style="font-size:11px;padding:2px 8px">nh</div><div class="pill" style="font-size:11px;padding:2px 8px">ty</div><div class="pill" style="font-size:11px;padding:2px 8px">wow</div><div class="pill" style="font-size:11px;padding:2px 8px">🥶</div><div class="pill" style="font-size:11px;padding:2px 8px">+ throw</div></div>
+<div class="fld" style="padding:6px 9px"><span style="opacity:.4;font-size:13px">Say something…</span><span class="m">↵</span></div>
+</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal" style="margin:0 12px 12px">RAIL NEVER MOVES. TAB SWITCH ≠ LEAVING THE FELT.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1k"><div class="dv-olabel"><a class="dv-oid" href="#1k">1k</a>Two rails — numbers on the left, people on the right, felt dead-centre.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="pill" style="font-size:11px">Tourney · Lvl 4</div><div class="pill" style="font-size:11px">12 left</div><div style="flex:1"></div><div class="m">NEXT LEVEL 3:42</div><div class="bt s">Leave</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="width:168px;flex:none;border-right:2px solid var(--ink);padding:12px;gap:11px">
+<div class="col bx" style="padding:9px 11px;gap:5px"><div class="m">THIS HAND</div><div class="row" style="justify-content:space-between"><span style="font-size:13px">Pot odds</span><span style="font-size:15px">3.1:1</span></div><div class="row" style="justify-content:space-between"><span style="font-size:13px">Need</span><span style="font-size:15px">24%</span></div><div class="row" style="justify-content:space-between"><span style="font-size:13px">Position</span><span style="font-size:15px">BTN</span></div></div>
+<div class="col bx" style="padding:9px 11px;gap:5px"><div class="m">YOUR STACK</div><div style="font-size:26px;line-height:1">1,240</div><div class="m2" style="opacity:.6">12 BIG BLINDS</div><div class="row" style="gap:4px"><div class="av" style="width:10px;height:10px;background:var(--ink)"></div><div class="av" style="width:10px;height:10px;background:var(--ink)"></div><div class="av" style="width:10px;height:10px"></div><span class="m">7TH / 12</span></div></div>
+<div class="col bx" style="padding:9px 11px;gap:5px"><div class="m">LEVEL 4</div><div style="font-size:15px">50 / 100 · ante 10</div><div class="ln" style="width:70%"></div><div class="m2" style="opacity:.6">NEXT: 75/150 IN 3:42</div><div class="m" style="color:var(--ac);opacity:1">LATE REG CLOSES LVL 6</div></div>
+<div style="flex:1"></div>
+<div class="col dsh" style="padding:8px 10px;gap:4px"><div class="m">PAYOUTS</div><div style="font-size:13px;opacity:.7;line-height:1.4">1st 4,500 · 2nd 2,700<br>3rd 1,800</div></div>
+</div>
+<div class="col shrink" style="flex:1">
+<div style="position:relative;flex:1">
+<div class="felt" style="inset:30px 46px 70px">
+<div class="col" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);align-items:center;gap:6px"><div class="m2">POT 1,850</div><div class="row" style="gap:4px"><div class="cd" style="width:23px;height:32px">A♠</div><div class="cd" style="width:23px;height:32px">7♦</div><div class="cd" style="width:23px;height:32px">2♣</div><div class="cd" style="width:23px;height:32px">K♥</div><div class="cd b" style="width:23px;height:32px"></div></div></div>
+<div class="st" style="left:50%;top:100%;width:138px;border-width:3px;padding:5px 8px"><div class="av" style="width:30px;height:30px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:13px">You</div><div class="m2">1,240</div></div><div class="row" style="gap:3px"><div class="cd" style="width:20px;height:28px;font-size:11px">Q♠</div><div class="cd" style="width:20px;height:28px;font-size:11px">J♠</div></div></div>
+<div class="st" style="left:-3%;top:52%;width:84px"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Ren</div><div class="m">210</div></div></div>
+<div class="st" style="left:36%;top:-4%;width:84px"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Kyle</div><div class="m">610</div></div></div>
+<div class="st" style="left:64%;top:-4%;width:84px;border-color:var(--ac);border-width:3px"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Bea</div><div class="m2" style="color:var(--ac)">450</div></div></div>
+<div class="st" style="left:103%;top:52%;width:84px"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Jas</div><div class="m">440</div></div></div>
+<div class="st" style="left:88%;top:88%;width:84px;opacity:.45"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Mo</div><div class="m">FOLD</div></div></div>
+<sc-if value="{{ s7 }}" hint-placeholder-val="{{ true }}"><div class="st" style="left:12%;top:88%;width:84px"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Dev</div><div class="m">905</div></div></div></sc-if>
+<sc-if value="{{ s8 }}" hint-placeholder-val="{{ true }}"><div class="st" style="left:9%;top:14%;width:84px"><div class="av" style="width:20px;height:20px"></div><div class="col" style="gap:1px"><div style="font-size:11px">Nia</div><div class="m">330</div></div></div></sc-if>
+<sc-if value="{{ s9 }}" hint-placeholder-val="{{ true }}"><div class="st e" style="left:91%;top:14%;width:84px"><span class="m">OPEN</span></div></sc-if>
+</div>
+</div>
+<div class="col" style="flex:none;height:112px;border-top:2px solid var(--ink);padding:11px 14px;gap:9px">
+<div class="row bx shrink" style="padding:6px 9px;gap:8px">
+<div class="bt s" style="padding:3px 9px">–</div>
+<div class="fld" style="padding:3px 9px;width:78px;justify-content:center;font-size:17px">1,300</div>
+<div class="bt s" style="padding:3px 9px">+</div>
+<div style="flex:1;min-width:40px;height:3px;background:var(--ink);position:relative"><div class="av" style="width:15px;height:15px;background:var(--ink);position:absolute;left:62%;top:-6px"></div></div>
+<div class="row" style="gap:5px"><div class="pill" style="font-size:11px;padding:2px 7px">½</div><div class="pill" style="font-size:11px;padding:2px 7px">¾</div><div class="pill" style="font-size:11px;padding:2px 7px;background:var(--ink);color:#fff">Pot</div><div class="pill" style="font-size:11px;padding:2px 7px">Max</div></div>
+</div>
+<div class="row" style="gap:9px">
+<div class="bt" style="flex:1">Fold</div>
+<div class="bt" style="flex:1">Call 450</div>
+<div class="bt a" style="flex:1.4">Raise 1,300</div>
+<div class="row" style="gap:5px;flex:0 0 92px"><div class="m2">0:18</div><div class="bx" style="flex:1;height:8px;border-radius:5px;overflow:hidden"><div style="width:58%;height:100%;background:var(--ac)"></div></div></div>
+</div>
+</div>
+</div>
+<div class="col" style="width:220px;flex:none;border-left:2px solid var(--ink);padding:12px;gap:10px">
+<div class="row"><div class="m2">TABLE TALK</div><div style="flex:1"></div><div class="m">MUTE</div></div>
+<div class="col" style="gap:8px;flex:1">
+<div class="col" style="gap:2px"><div class="m">KYLE</div><div style="font-size:13px;line-height:1.35">min-raise? in this economy?</div></div>
+<div class="col" style="gap:2px"><div class="m">BEA</div><div style="font-size:13px;line-height:1.35">paying you off, sorry</div></div>
+<div class="row dsh" style="padding:6px 8px;justify-content:center;font-size:11px;color:rgba(22,21,15,.5)">Mo threw a rubber chicken</div>
+</div>
+<div class="col bx" style="padding:8px 10px;gap:7px"><div class="m">THROWABLES</div><div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px"><div class="bt s g" style="padding:0;height:30px">🍗</div><div class="bt s g" style="padding:0;height:30px">🧊</div><div class="bt s g" style="padding:0;height:30px">💣</div><div class="bt s g" style="padding:0;height:30px">🪑</div></div><div class="m" style="opacity:.45">DRAG ONTO A PLAYER</div></div>
+<div class="row" style="gap:5px;flex-wrap:wrap"><div class="pill" style="font-size:11px;padding:2px 8px">nh</div><div class="pill" style="font-size:11px;padding:2px 8px">ty</div><div class="pill" style="font-size:11px;padding:2px 8px">lol</div></div>
+<div class="fld" style="padding:6px 9px"><span style="opacity:.4;font-size:13px">Say something…</span></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">TWO RAILS EAT 388PX. TIGHT ON A 13" LAPTOP.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1l"><div class="dv-olabel"><a class="dv-oid" href="#1l">1l</a>Max felt — icon rail collapsed, sizing as a vertical slider by your cards, timer ringing your avatar.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="pill" style="font-size:11px">Cash 1/2</div><div style="flex:1"></div><div class="m">POT 1,850 · HAND #214</div><div class="bt s g">Sit out</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div style="position:relative;flex:1">
+<div class="felt" style="inset:40px 150px 118px">
+<div class="col" style="position:absolute;left:50%;top:38%;transform:translate(-50%,-50%);align-items:center;gap:8px">
+<div style="font-size:22px">1,850</div>
+<div class="row" style="gap:6px"><div class="cd" style="width:30px;height:42px;font-size:15px">A♠</div><div class="cd" style="width:30px;height:42px;font-size:15px">7♦</div><div class="cd" style="width:30px;height:42px;font-size:15px">2♣</div><div class="cd" style="width:30px;height:42px;font-size:15px">K♥</div><div class="cd b" style="width:30px;height:42px"></div></div>
+</div>
+<div class="st" style="left:50%;top:100%;width:170px;border-width:3px;padding:7px 10px">
+<div style="position:relative"><div class="av" style="width:38px;height:38px"></div><div style="position:absolute;inset:-5px;border:3px solid var(--ac);border-radius:50%;border-right-color:transparent;border-bottom-color:transparent"></div></div>
+<div class="col" style="flex:1;gap:2px"><div style="font-size:14px">You · BTN</div><div class="m2">1,240 · 0:18</div></div>
+<div class="row" style="gap:4px"><div class="cd" style="width:25px;height:35px">Q♠</div><div class="cd" style="width:25px;height:35px">J♠</div></div></div>
+<div class="st" style="left:-3%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Ren</div><div class="m">210</div></div></div>
+<div class="st" style="left:36%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Kyle</div><div class="m">610</div></div></div>
+<div class="st" style="left:64%;top:-4%;border-color:var(--ac);border-width:3px"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Bea</div><div class="m2" style="color:var(--ac)">BET 450</div></div></div>
+<div class="st" style="left:103%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Jas</div><div class="m">440</div></div></div>
+<div class="st" style="left:88%;top:88%;opacity:.45"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Mo</div><div class="m">FOLDED</div></div></div>
+<sc-if value="{{ s7 }}" hint-placeholder-val="{{ true }}"><div class="st" style="left:12%;top:88%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Dev</div><div class="m">905</div></div></div></sc-if>
+<sc-if value="{{ s8 }}" hint-placeholder-val="{{ true }}"><div class="st" style="left:9%;top:14%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Nia</div><div class="m">330</div></div></div></sc-if>
+<sc-if value="{{ s9 }}" hint-placeholder-val="{{ true }}"><div class="st e" style="left:91%;top:14%"><span class="m">OPEN</span></div></sc-if>
+</div>
+<div class="col" style="position:absolute;right:24px;bottom:96px;align-items:center;gap:7px;width:104px">
+<div class="pill" style="font-size:11px;padding:2px 8px">All in</div><div class="pill" style="font-size:11px;padding:2px 8px">Pot</div><div class="pill" style="font-size:11px;padding:2px 8px;background:var(--ink);color:#fff">⅔</div><div class="pill" style="font-size:11px;padding:2px 8px">½</div>
+<div class="row" style="gap:9px;align-items:flex-end"><div class="bx" style="width:14px;height:104px;border-radius:8px;position:relative"><div style="position:absolute;left:-4px;top:34px;width:22px;height:10px;background:var(--ink);border-radius:3px"></div></div><div class="fld" style="padding:4px 9px;font-size:16px">1,300</div></div>
+</div>
+<div class="row" style="position:absolute;left:24px;right:150px;bottom:22px;gap:10px">
+<div class="bt" style="flex:0 0 100px">Fold</div><div class="bt" style="flex:0 0 116px">Call 450</div><div class="bt a" style="flex:1">Raise to 1,300</div>
+</div>
+<div class="pill" style="position:absolute;left:24px;bottom:74px;border-color:var(--ac);color:var(--ac);font-size:11px">3.1 : 1 · need 24%</div>
+<div class="col" style="position:absolute;left:16px;top:14px;gap:6px"><div class="bt s g" style="border-radius:50%;width:36px;height:36px;padding:0">☺</div><div class="m" style="width:40px;text-align:center">EMOTE</div></div>
+</div>
+<div class="col" style="width:58px;border-left:2px solid var(--ink);align-items:center;padding:12px 0;gap:14px">
+<div class="bx" style="width:34px;height:34px;display:grid;place-items:center;position:relative">💬<div style="position:absolute;right:-5px;top:-5px;width:16px;height:16px;border-radius:50%;background:var(--ac);color:#fff;font-size:9px;display:grid;place-items:center">3</div></div>
+<div class="bx" style="width:34px;height:34px;display:grid;place-items:center;font-size:12px">↺</div>
+<div class="bx" style="width:34px;height:34px;display:grid;place-items:center;font-size:12px">✎</div>
+<div class="bx" style="width:34px;height:34px;display:grid;place-items:center;font-size:12px">%</div>
+<div style="flex:1"></div>
+<div class="bx" style="width:34px;height:34px;display:grid;place-items:center;font-size:12px">⚙</div>
+</div>
+</div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal" style="position:absolute;right:74px;top:52px;max-width:150px">PANELS OVERLAY THE FELT INSTEAD OF SHRINKING IT — CHECK IT DOESN'T COVER SEATS 4–7</div></sc-if>
+</div></div></div>
+
+</div>
+
+<div class="grp">Table — pre-game, hand history, notes &amp; stats (rail contents from <a class="dv-oid" href="#1j" style="background:rgba(0,0,0,.08)">1j</a>)</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1m"><div class="dv-olabel"><a class="dv-oid" href="#1m">1m</a>Waiting on players — buy-ins, ready state, invite link, and the host's early-start button.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="pill" style="font-size:11px">Kyle's Thursday Game</div><div class="pill" style="font-size:11px">Cash 1/2</div><div style="flex:1"></div><div class="m">NOT STARTED</div><div class="bt s g">Leave</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div style="position:relative;flex:1">
+<div class="felt" style="inset:40px 60px 90px">
+<div class="col" style="position:absolute;left:50%;top:44%;transform:translate(-50%,-50%);align-items:center;gap:9px">
+<div style="font-size:22px">Waiting on 2 more</div>
+<div class="m2" style="opacity:.6">MINIMUM 6 TO DEAL · 4 SEATED</div>
+<div class="row" style="gap:9px"><div class="bt a">Start anyway (host)</div><div class="bt">Copy invite link</div></div>
+</div>
+<div class="st" style="left:50%;top:100%;width:150px;border-width:3px;padding:6px 9px"><div class="av" style="width:32px;height:32px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px">You</div><div class="m2">BOUGHT IN 200</div></div><div class="pill" style="font-size:10px;padding:1px 7px;background:var(--ink);color:#fff">READY</div></div>
+<div class="st" style="left:-3%;top:52%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Ren</div><div class="m">200 ✓</div></div></div>
+<div class="st" style="left:36%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Kyle</div><div class="m">400 ✓</div></div></div>
+<div class="st" style="left:64%;top:-4%;border-style:dashed"><div class="av hatch" style="width:22px;height:22px;opacity:.4"></div><div class="col" style="gap:2px"><div style="font-size:11px;opacity:.55">Bea</div><div class="m" style="color:var(--ac);opacity:1">BUYING IN…</div></div></div>
+<div class="st e" style="left:103%;top:52%"><span class="m">SEAT 8 · OPEN</span></div>
+<div class="st e" style="left:88%;top:88%"><span class="m">SEAT 9 · OPEN</span></div>
+<sc-if value="{{ s7 }}" hint-placeholder-val="{{ true }}"><div class="st e" style="left:12%;top:88%"><span class="m">SEAT 2 · OPEN</span></div></sc-if>
+<sc-if value="{{ s8 }}" hint-placeholder-val="{{ true }}"><div class="st e" style="left:9%;top:14%"><span class="m">SEAT 4 · OPEN</span></div></sc-if>
+<sc-if value="{{ s9 }}" hint-placeholder-val="{{ true }}"><div class="st e" style="left:91%;top:14%"><span class="m">SEAT 7 · OPEN</span></div></sc-if>
+</div>
+<div class="row bx" style="position:absolute;left:24px;right:24px;bottom:16px;padding:9px 13px;gap:11px;align-items:center"><div class="m2">SHARE</div><div class="fld" style="flex:1;padding:4px 10px;font-size:16px;letter-spacing:.16em">felt.gg / KYL37</div><div class="bt s p">Copy</div><div class="bt s">Text it</div></div>
+</div>
+<div class="col" style="width:268px;border-left:2px solid var(--ink);padding:12px 14px;gap:11px">
+<div class="row"><div class="m2">SEATED 4 / 9</div><div style="flex:1"></div><div class="m">WAITLIST 0</div></div>
+<div class="col" style="gap:7px">
+<div class="row bx" style="padding:7px 9px;gap:8px"><div class="av" style="width:26px;height:26px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px">Kyle <span class="m">HOST</span></div><div class="m">BUY-IN 400 · MAX</div></div><div class="pill" style="font-size:10px;padding:1px 7px;background:var(--ink);color:#fff">✓</div></div>
+<div class="row bx" style="padding:7px 9px;gap:8px"><div class="av" style="width:26px;height:26px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px">Ren</div><div class="m">BUY-IN 200</div></div><div class="pill" style="font-size:10px;padding:1px 7px;background:var(--ink);color:#fff">✓</div></div>
+<div class="row bx" style="padding:7px 9px;gap:8px"><div class="av" style="width:26px;height:26px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px">You</div><div class="m">BUY-IN 200 · 0 REBUYS</div></div><div class="pill" style="font-size:10px;padding:1px 7px;background:var(--ink);color:#fff">✓</div></div>
+<div class="row bx" style="padding:7px 9px;gap:8px;border-style:dashed"><div class="av" style="width:26px;height:26px;opacity:.4"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px;opacity:.6">Bea</div><div class="m" style="color:var(--ac);opacity:1">AWAITING HOST APPROVAL</div></div><div class="bt s" style="padding:3px 8px;font-size:11px">OK</div></div>
+</div>
+<div class="col bx" style="padding:9px 11px;gap:7px"><div class="m">YOUR BUY-IN</div><div class="row" style="gap:6px"><div class="pill" style="font-size:11px">100</div><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">200</div><div class="pill" style="font-size:11px">400</div></div><div class="row" style="justify-content:space-between"><span style="font-size:13px">Auto top-up to 200</span><div class="bx" style="width:32px;height:18px;border-radius:12px;position:relative"><div style="position:absolute;right:2px;top:2px;width:10px;height:10px;border-radius:50%;background:var(--ink)"></div></div></div></div>
+<div style="flex:1"></div>
+<div class="col" style="gap:6px"><div class="m2">TABLE TALK</div><div style="font-size:13px;opacity:.65;line-height:1.4">Kyle: bea always does this<br>Ren: starting without her</div><div class="fld" style="padding:5px 9px"><span style="opacity:.4;font-size:13px">Say something…</span></div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">DEAD TIME IS WHERE HOME GAMES DIE. GIVE THEM SOMETHING TO DO.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1n"><div class="dv-olabel"><a class="dv-oid" href="#1n">1n</a>Hand history — street-by-street betting action with a replay scrubber.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div style="flex:1"></div><div class="m">PANEL OPEN OVER THE TABLE</div><div class="bt s g">✕ Close</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="width:206px;border-right:2px solid var(--ink);padding:12px;gap:8px">
+<div class="row"><div class="m2">HANDS THIS SESSION</div></div>
+<div class="fld" style="padding:5px 9px"><span style="opacity:.4;font-size:13px">Filter…</span></div>
+<div class="row" style="gap:5px;flex-wrap:wrap"><div class="pill" style="font-size:10px;padding:2px 7px;background:var(--ink);color:#fff">All</div><div class="pill" style="font-size:10px;padding:2px 7px">Won</div><div class="pill" style="font-size:10px;padding:2px 7px">Showdown</div></div>
+<div class="col bx" style="padding:7px 9px;gap:3px;border-width:3px"><div class="row"><span class="m2">#214</span><div style="flex:1"></div><span class="m2" style="color:var(--ac)">–450</span></div><div class="row" style="gap:3px"><div class="cd" style="width:15px;height:21px;font-size:9px">Q♠</div><div class="cd" style="width:15px;height:21px;font-size:9px">J♠</div><span class="m" style="margin-left:4px">BTN · 6 SAW FLOP</span></div></div>
+<div class="col bx" style="padding:7px 9px;gap:3px"><div class="row"><span class="m2">#213</span><div style="flex:1"></div><span class="m2">+1,120</span></div><div class="row" style="gap:3px"><div class="cd" style="width:15px;height:21px;font-size:9px">A♥</div><div class="cd" style="width:15px;height:21px;font-size:9px">A♣</div><span class="m" style="margin-left:4px">CO · SHOWDOWN</span></div></div>
+<div class="col bx" style="padding:7px 9px;gap:3px"><div class="row"><span class="m2">#212</span><div style="flex:1"></div><span class="m2" style="opacity:.5">—</span></div><div class="row" style="gap:3px"><div class="cd b" style="width:15px;height:21px"></div><div class="cd b" style="width:15px;height:21px"></div><span class="m" style="margin-left:4px">UTG · FOLDED PRE</span></div></div>
+<div class="col bx" style="padding:7px 9px;gap:3px"><div class="row"><span class="m2">#211</span><div style="flex:1"></div><span class="m2">+180</span></div><div class="row" style="gap:3px"><div class="cd" style="width:15px;height:21px;font-size:9px">7♦</div><div class="cd" style="width:15px;height:21px;font-size:9px">7♣</div><span class="m" style="margin-left:4px">SB · WON PREFLOP</span></div></div>
+<div class="row dsh" style="padding:6px;justify-content:center;font-size:12px;color:rgba(22,21,15,.5)">210 older hands</div>
+</div>
+<div class="col" style="flex:1;padding:14px 18px;gap:11px">
+<div class="row"><div style="font-size:20px">Hand #214</div><div class="pill" style="font-size:11px">Pot 1,850</div><div class="pill" style="font-size:11px">6 handed</div><div style="flex:1"></div><div class="bt s">Share hand</div><div class="bt s">Add note</div></div>
+<div class="col bx" style="padding:0;overflow:hidden;flex:1">
+<div class="row" style="padding:7px 13px;border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05);gap:10px"><span class="m2">PRE-FLOP</span><span class="m">BLINDS 1/2 · POT 3</span><div style="flex:1"></div><div class="row" style="gap:3px"><div class="cd" style="width:19px;height:26px;font-size:10px">Q♠</div><div class="cd" style="width:19px;height:26px;font-size:10px">J♠</div></div></div>
+<div class="col" style="padding:8px 13px;gap:5px">
+<div class="row"><span style="width:56px;font-size:13px;opacity:.6">Ren</span><span style="font-size:14px;flex:1">folds</span></div>
+<div class="row"><span style="width:56px;font-size:13px;opacity:.6">Nia</span><span style="font-size:14px;flex:1">raises to 6</span><span class="m2">POT 9</span></div>
+<div class="row"><span style="width:56px;font-size:13px">You</span><span style="font-size:14px;flex:1">calls 6 <span class="m" style="color:var(--ac);opacity:1">BTN</span></span><span class="m2">POT 15</span></div>
+<div class="row"><span style="width:56px;font-size:13px;opacity:.6">Bea</span><span style="font-size:14px;flex:1">calls 6</span><span class="m2">POT 21</span></div>
+</div>
+<div class="row" style="padding:7px 13px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05);gap:10px"><span class="m2">FLOP</span><div class="row" style="gap:3px"><div class="cd" style="width:19px;height:26px;font-size:10px">A♠</div><div class="cd" style="width:19px;height:26px;font-size:10px">7♦</div><div class="cd" style="width:19px;height:26px;font-size:10px">2♣</div></div><div style="flex:1"></div><span class="m">POT 21</span></div>
+<div class="col" style="padding:8px 13px;gap:5px">
+<div class="row"><span style="width:56px;font-size:13px;opacity:.6">Bea</span><span style="font-size:14px;flex:1">checks</span></div>
+<div class="row"><span style="width:56px;font-size:13px;opacity:.6">Nia</span><span style="font-size:14px;flex:1">bets 14</span><span class="m2">POT 35</span></div>
+<div class="row"><span style="width:56px;font-size:13px">You</span><span style="font-size:14px;flex:1">calls 14</span><span class="m2">POT 49</span></div>
+</div>
+<div class="row" style="padding:7px 13px;border-top:2px solid var(--ink);border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05);gap:10px"><span class="m2">TURN</span><div class="cd" style="width:19px;height:26px;font-size:10px">K♥</div><div style="flex:1"></div><span class="m">POT 49</span></div>
+<div class="col" style="padding:8px 13px;gap:5px"><div class="row"><span style="width:56px;font-size:13px;opacity:.6">Bea</span><span style="font-size:14px;flex:1">bets 450 <span class="m" style="color:var(--ac);opacity:1">OVERBET</span></span></div><div class="row"><span style="width:56px;font-size:13px">You</span><span style="font-size:14px;flex:1;opacity:.5">— thinking, 0:18 left —</span></div></div>
+<div class="row" style="padding:7px 13px;border-top:2px solid var(--ink);background:rgba(22,21,15,.03);gap:10px;opacity:.4"><span class="m2">RIVER</span><div class="cd b" style="width:19px;height:26px"></div><div style="flex:1"></div><span class="m">NOT DEALT</span></div>
+</div>
+<div class="row bx" style="padding:8px 12px;gap:11px;align-items:center"><div class="bt s" style="padding:4px 10px">◀</div><div class="bt s p" style="padding:4px 10px">▶</div><div style="flex:1;height:3px;background:var(--ink);position:relative"><div class="av" style="width:15px;height:15px;background:var(--ink);position:absolute;left:70%;top:-6px"></div></div><div class="m2">TURN 3/4</div><div class="bt s">1×</div></div>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1o"><div class="dv-olabel"><a class="dv-oid" href="#1o">1o</a>Notes on a player + your session stats — flops seen, position, VPIP.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="row" style="gap:5px;margin-left:10px;align-self:flex-end;margin-bottom:-13px"><div class="tab on">Notes</div><div class="tab">Stats</div></div><div style="flex:1"></div><div class="bt s g">✕ Close</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="width:430px;border-right:2px solid var(--ink);padding:14px 18px;gap:12px">
+<div class="row" style="gap:10px"><div class="av" style="width:40px;height:40px"></div><div class="col" style="flex:1;gap:3px"><div style="font-size:19px">Bea</div><div class="m">37 HANDS TOGETHER · SEAT 6</div></div><div class="row" style="gap:4px"><div class="sw" style="width:20px;height:20px;background:var(--ac);border-color:var(--ac)"></div><div class="sw" style="width:20px;height:20px"></div><div class="sw" style="width:20px;height:20px"></div></div></div>
+<div class="col" style="gap:7px"><div class="m2">TAGS</div><div class="row" style="gap:6px;flex-wrap:wrap"><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Overbets turns</div><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Calls too wide</div><div class="pill" style="font-size:11px">3-bets light</div><div class="pill" style="font-size:11px">Tilts</div><div class="pill" style="font-size:11px">Nit</div><div class="pill dsh" style="font-size:11px;border-radius:20px">+ tag</div></div></div>
+<div class="col" style="gap:7px;flex:1"><div class="m2">YOUR NOTE</div><div class="bx col" style="flex:1;padding:11px 13px;gap:7px"><div style="font-size:14px;line-height:1.5">Fires huge on scare cards, folds to the re-raise every single time. Bluffed the K of hearts twice tonight.</div><div class="ln" style="width:40%"></div></div></div>
+<div class="col" style="gap:7px"><div class="m2">AUTO-NOTES · KEPT BY THE APP</div><div class="col dsh" style="padding:9px 11px;gap:5px"><div class="row" style="gap:8px"><span class="m" style="width:44px">#198</span><span style="font-size:13px;flex:1">Showed 7♦2♦ after a 3-street bluff</span></div><div class="row" style="gap:8px"><span class="m" style="width:44px">#171</span><span style="font-size:13px;flex:1">Limp-called 40bb deep from UTG</span></div></div></div>
+<div class="row" style="gap:9px"><div class="bt a" style="flex:1">Save note</div><div class="bt g">Clear</div></div>
+</div>
+<div class="col" style="flex:1;padding:14px 18px;gap:11px">
+<div class="row"><div style="font-size:19px">Your session</div><div style="flex:1"></div><div class="row" style="gap:5px"><div class="pill" style="font-size:10px;padding:2px 7px;background:var(--ink);color:#fff">Tonight</div><div class="pill" style="font-size:10px;padding:2px 7px">All time</div></div></div>
+<div style="display:grid;grid-template-columns:repeat(2,1fr);gap:9px">
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">FLOPS SEEN</div><div style="font-size:24px;line-height:1.1">34%</div><div class="m" style="opacity:.45">72 OF 214 HANDS</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">WENT TO SHOWDOWN</div><div style="font-size:24px;line-height:1.1">28%</div><div class="m" style="opacity:.45">WON 61% OF THEM</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">VPIP / PFR</div><div style="font-size:24px;line-height:1.1">31 / 19</div><div class="m" style="opacity:.45">TABLE AVG 26 / 14</div></div>
+<div class="col bx" style="padding:9px 11px;gap:2px"><div class="m">BIGGEST POT</div><div style="font-size:24px;line-height:1.1">+1,120</div><div class="m" style="opacity:.45">HAND #213 · A♥A♣</div></div>
+</div>
+<div class="col bx" style="padding:10px 12px;gap:7px">
+<div class="m2">BY POSITION</div>
+<div class="row" style="gap:8px"><span class="m" style="width:34px">UTG</span><div style="flex:1;height:11px;background:rgba(22,21,15,.18);border-radius:3px;position:relative"><div style="width:22%;height:100%;background:var(--ink);border-radius:3px"></div></div><span class="m2" style="width:64px;text-align:right">−140</span></div>
+<div class="row" style="gap:8px"><span class="m" style="width:34px">MP</span><div style="flex:1;height:11px;background:rgba(22,21,15,.18);border-radius:3px"><div style="width:30%;height:100%;background:var(--ink);border-radius:3px"></div></div><span class="m2" style="width:64px;text-align:right">+60</span></div>
+<div class="row" style="gap:8px"><span class="m" style="width:34px">CO</span><div style="flex:1;height:11px;background:rgba(22,21,15,.18);border-radius:3px"><div style="width:44%;height:100%;background:var(--ink);border-radius:3px"></div></div><span class="m2" style="width:64px;text-align:right">+310</span></div>
+<div class="row" style="gap:8px"><span class="m" style="width:34px">BTN</span><div style="flex:1;height:11px;background:rgba(22,21,15,.18);border-radius:3px"><div style="width:62%;height:100%;background:var(--ac);border-radius:3px"></div></div><span class="m2" style="width:64px;text-align:right;color:var(--ac)">+880</span></div>
+<div class="row" style="gap:8px"><span class="m" style="width:34px">SB</span><div style="flex:1;height:11px;background:rgba(22,21,15,.18);border-radius:3px"><div style="width:18%;height:100%;background:var(--ink);border-radius:3px"></div></div><span class="m2" style="width:64px;text-align:right">−420</span></div>
+<div class="row" style="gap:8px"><span class="m" style="width:34px">BB</span><div style="flex:1;height:11px;background:rgba(22,21,15,.18);border-radius:3px"><div style="width:26%;height:100%;background:var(--ink);border-radius:3px"></div></div><span class="m2" style="width:64px;text-align:right">−250</span></div>
+</div>
+<div class="col dsh" style="padding:10px 12px;gap:6px;flex:1"><div class="m">CHIP STACK OVER TIME</div><div class="hatch" style="flex:1;border-radius:5px;min-height:56px"></div><div class="m" style="opacity:.45;text-align:center">LINE CHART PLACEHOLDER · 214 HANDS</div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">STATS ARE THE RETENTION HOOK — SURFACE ONE ON THE POST-GAME SCREEN TOO</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+</div>
+
+<div class="grp">Settings — name, avatar, chips, cards, fold style, felt, background</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1p"><div class="dv-olabel"><a class="dv-oid" href="#1p">1p</a>Two-pane preferences with a pinned mini-table that reflects every choice.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div style="flex:1"></div><div class="m">CHANGES SAVE AS YOU GO</div><div class="bt s g">Done</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="width:182px;border-right:2px solid var(--ink);padding:14px 12px;gap:4px">
+<div class="bx row" style="padding:8px 11px;background:var(--ink);color:#fff">Your player</div>
+<div class="row" style="padding:8px 11px">Table look</div>
+<div class="row" style="padding:8px 11px">Cards &amp; chips</div>
+<div class="row" style="padding:8px 11px">Fold &amp; animation</div>
+<div class="row" style="padding:8px 11px">Sound</div>
+<div class="row" style="padding:8px 11px">Privacy &amp; blocking</div>
+<div style="flex:1"></div>
+<div class="row" style="padding:8px 11px;opacity:.6">Sign out</div>
+</div>
+<div class="col" style="flex:1;padding:16px 22px;gap:14px">
+<div style="font-size:22px">Your player</div>
+<div class="row" style="gap:14px;align-items:flex-start">
+<div class="col" style="gap:7px;align-items:center"><div class="av" style="width:72px;height:72px;border-width:3px"></div><div class="bt s">Change</div></div>
+<div class="col" style="flex:1;gap:11px">
+<div class="col" style="gap:6px"><div class="m2">DISPLAY NAME</div><div class="fld"><span>Donk Kong</span><span class="m">SAVE</span></div><div style="font-size:12px;opacity:.5">You can change this once every 30 days. Everyone at your tables sees the change.</div></div>
+<div class="col" style="gap:6px"><div class="m2">AVATAR STYLE</div><div class="row" style="gap:8px"><div class="av" style="width:38px;height:38px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div class="av" style="width:38px;height:38px"></div><div class="av" style="width:38px;height:38px"></div><div class="av" style="width:38px;height:38px"></div><div class="av dsh" style="width:38px;height:38px;background:none;display:grid;place-items:center">↑</div></div><div class="m" style="opacity:.45">PRESETS OR UPLOAD</div></div>
+</div>
+</div>
+<div class="col" style="gap:7px"><div class="m2">CHIP COLOUR — YOUR STACK</div><div class="row" style="gap:9px"><div class="av" style="width:30px;height:30px;background:var(--ink);box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div class="av" style="width:30px;height:30px;background:rgba(22,21,15,.45)"></div><div class="av" style="width:30px;height:30px;background:#fff"></div><div class="av hatch" style="width:30px;height:30px"></div><div class="av" style="width:30px;height:30px;background:var(--ac);border-color:var(--ac)"></div></div></div>
+<div class="row" style="gap:14px">
+<div class="col" style="flex:1;gap:7px"><div class="m2">CARD FACES</div><div class="row" style="gap:8px"><div class="bx col" style="padding:6px 8px;gap:4px;border-width:3px"><div class="row" style="gap:3px"><div class="cd" style="width:19px;height:26px;font-size:10px">A♠</div><div class="cd" style="width:19px;height:26px;font-size:10px">K♥</div></div><div class="m">2-COLOUR</div></div><div class="bx col" style="padding:6px 8px;gap:4px"><div class="row" style="gap:3px"><div class="cd" style="width:19px;height:26px;font-size:10px">A♣</div><div class="cd" style="width:19px;height:26px;font-size:10px">K♦</div></div><div class="m">4-COLOUR</div></div><div class="bx col" style="padding:6px 8px;gap:4px"><div class="row" style="gap:3px"><div class="cd" style="width:19px;height:26px;font-size:13px">A</div><div class="cd" style="width:19px;height:26px;font-size:13px">K</div></div><div class="m">BIG INDEX</div></div></div></div>
+<div class="col" style="flex:1;gap:7px"><div class="m2">FOLD STYLE</div><div class="row" style="gap:8px"><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Slide away</div><div class="pill" style="font-size:11px">Fade out</div><div class="pill" style="font-size:11px">Flick it</div><div class="pill" style="font-size:11px">Instant</div></div></div>
+</div>
+<div style="flex:1"></div>
+</div>
+<div class="col" style="width:218px;border-left:2px solid var(--ink);padding:14px;gap:10px">
+<div class="m2">LIVE PREVIEW</div>
+<div class="bx" style="position:relative;height:150px;overflow:hidden">
+<div class="felt" style="inset:26px 22px 34px">
+<div class="row" style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);gap:3px"><div class="cd" style="width:16px;height:22px;font-size:9px">A♠</div><div class="cd" style="width:16px;height:22px;font-size:9px">7♦</div><div class="cd" style="width:16px;height:22px;font-size:9px">2♣</div></div>
+<div class="st" style="left:50%;top:100%;width:78px;padding:3px 5px"><div class="av" style="width:16px;height:16px"></div><div class="m">YOU</div></div>
+<div class="st" style="left:0%;top:30%;width:60px;padding:3px 5px"><div class="av" style="width:14px;height:14px"></div><div class="m">REN</div></div>
+<div class="st" style="left:100%;top:30%;width:60px;padding:3px 5px"><div class="av" style="width:14px;height:14px"></div><div class="m">JAS</div></div>
+</div>
+</div>
+<div class="col" style="gap:7px"><div class="m2">TABLE COLOUR</div><div class="row" style="gap:7px;flex-wrap:wrap"><div class="sw" style="background:rgba(22,21,15,.08);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="sw" style="background:rgba(22,21,15,.3)"></div><div class="sw hatch"></div><div class="sw" style="background:var(--ink)"></div><div class="sw" style="background:#fff"></div><div class="sw" style="background:var(--ac);border-color:var(--ac)"></div></div></div>
+<div class="col" style="gap:7px"><div class="m2">BACKGROUND</div><div class="row" style="gap:7px;flex-wrap:wrap"><div class="sw" style="background:#fff;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="sw hatch"></div><div class="sw" style="background:rgba(22,21,15,.5)"></div><div class="sw" style="background:var(--ink)"></div></div><div class="m" style="opacity:.45">DARK MODE FOLLOWS THIS</div></div>
+<div style="flex:1"></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">SAFEST PATTERN. LEAST FUN.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1q"><div class="dv-olabel"><a class="dv-oid" href="#1q">1q</a>Edit it where you'll see it — click any element on a live table, its palette pops.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div class="pill" style="font-size:11px">Customising · practice table</div><div style="flex:1"></div><div class="bt s g">Reset all</div><div class="bt s p">Done</div></div>
+<div style="position:relative;flex:1">
+<div class="felt" style="inset:56px 240px 96px">
+<div class="col" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);align-items:center;gap:7px"><div class="m2">POT 240</div><div class="row" style="gap:5px"><div class="cd">A♠</div><div class="cd">7♦</div><div class="cd">2♣</div></div></div>
+<div class="st" style="left:50%;top:100%;width:150px;border-width:3px;padding:6px 9px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"><div class="av" style="width:32px;height:32px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:14px">You</div><div class="m2">1,240</div></div><div class="row" style="gap:3px"><div class="cd" style="width:22px;height:31px">Q♠</div><div class="cd" style="width:22px;height:31px">J♠</div></div></div>
+<div class="st" style="left:0%;top:32%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Ren</div><div class="m">210</div></div></div>
+<div class="st" style="left:100%;top:32%"><div class="av" style="width:22px;height:22px"></div><div class="col" style="gap:2px"><div style="font-size:11px">Jas</div><div class="m">440</div></div></div>
+<div class="row" style="position:absolute;left:50%;top:64%;transform:translateX(-50%);gap:4px"><div class="av" style="width:15px;height:15px;background:var(--ink)"></div><div class="av" style="width:15px;height:15px;background:var(--ink)"></div><div class="av" style="width:15px;height:15px;background:var(--ac);border-color:var(--ac)"></div></div>
+</div>
+<div class="col bx" style="position:absolute;left:16px;top:56px;width:200px;padding:11px 13px;gap:10px;background:#fff;box-shadow:5px 5px 0 rgba(22,21,15,.12)">
+<div class="row"><div class="m2">YOUR SEAT</div><div style="flex:1"></div><span class="m">✕</span></div>
+<div class="col" style="gap:6px"><div class="m">AVATAR</div><div class="row" style="gap:6px"><div class="av" style="width:30px;height:30px;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="av" style="width:30px;height:30px"></div><div class="av" style="width:30px;height:30px"></div><div class="av dsh" style="width:30px;height:30px;background:none;display:grid;place-items:center">↑</div></div></div>
+<div class="col" style="gap:6px"><div class="m">NAME</div><div class="fld" style="padding:5px 9px;font-size:13px"><span>Donk Kong</span><span class="m">✎</span></div></div>
+<div class="col" style="gap:6px"><div class="m">CARD FACE</div><div class="row" style="gap:5px"><div class="pill" style="font-size:10px;padding:2px 7px;background:var(--ink);color:#fff">2-col</div><div class="pill" style="font-size:10px;padding:2px 7px">4-col</div><div class="pill" style="font-size:10px;padding:2px 7px">Big</div></div></div>
+<div class="col" style="gap:6px"><div class="m">FOLD STYLE</div><div class="row" style="gap:5px"><div class="pill" style="font-size:10px;padding:2px 7px;background:var(--ink);color:#fff">Slide</div><div class="pill" style="font-size:10px;padding:2px 7px">Fade</div><div class="pill" style="font-size:10px;padding:2px 7px">Flick</div></div><div class="dsh row" style="padding:5px;justify-content:center;font-size:11px;color:rgba(22,21,15,.5)">▶ preview the fold</div></div>
+</div>
+<div class="col bx" style="position:absolute;right:16px;top:56px;width:196px;padding:11px 13px;gap:10px;background:#fff;box-shadow:5px 5px 0 rgba(22,21,15,.12)">
+<div class="row"><div class="m2">THE ROOM</div><div style="flex:1"></div><span class="m">✕</span></div>
+<div class="col" style="gap:6px"><div class="m">FELT</div><div class="row" style="gap:6px;flex-wrap:wrap"><div class="sw" style="width:25px;height:25px;background:rgba(22,21,15,.08);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="sw" style="width:25px;height:25px;background:rgba(22,21,15,.32)"></div><div class="sw hatch" style="width:25px;height:25px"></div><div class="sw" style="width:25px;height:25px;background:var(--ink)"></div><div class="sw" style="width:25px;height:25px;background:var(--ac);border-color:var(--ac)"></div></div></div>
+<div class="col" style="gap:6px"><div class="m">BACKGROUND</div><div class="row" style="gap:6px"><div class="sw" style="width:25px;height:25px;background:#fff;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="sw hatch" style="width:25px;height:25px"></div><div class="sw" style="width:25px;height:25px;background:rgba(22,21,15,.5)"></div><div class="sw" style="width:25px;height:25px;background:var(--ink)"></div></div></div>
+<div class="col" style="gap:6px"><div class="m">CHIPS</div><div class="row" style="gap:6px"><div class="av" style="width:25px;height:25px;background:var(--ink)"></div><div class="av" style="width:25px;height:25px;background:rgba(22,21,15,.4)"></div><div class="av" style="width:25px;height:25px;background:#fff"></div><div class="av" style="width:25px;height:25px;background:var(--ac);border-color:var(--ac)"></div></div></div>
+<div class="col" style="gap:6px"><div class="m">CARD BACK</div><div class="row" style="gap:6px"><div class="cd b" style="width:22px;height:30px"></div><div class="cd" style="width:22px;height:30px;background:var(--ink)"></div><div class="cd" style="width:22px;height:30px"></div></div></div>
+</div>
+<div class="row dsh" style="position:absolute;left:50%;bottom:22px;transform:translateX(-50%);padding:8px 14px;gap:12px;align-items:center;background:#fff"><span class="m">CLICK ANYTHING ON THE TABLE TO STYLE IT</span><div class="bt s">Deal a practice hand</div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal" style="position:absolute;left:16px;bottom:22px;max-width:190px">BEST FEEL, MOST BUILD. NEEDS A PLAIN LIST FALLBACK FOR ACCESSIBILITY.</div></sc-if>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1r"><div class="dv-olabel"><a class="dv-oid" href="#1r">1r</a>One long gallery — every option visible as a swatch grid, sticky save bar.</div><div class="dv-card"><div class="f">
+<div class="top"><div style="font-size:18px">FELT</div><div class="row" style="gap:5px;margin-left:10px"><div class="pill" style="font-size:11px;background:var(--ink);color:#fff">Look</div><div class="pill" style="font-size:11px">Account</div><div class="pill" style="font-size:11px">Sound</div><div class="pill" style="font-size:11px">Privacy</div></div><div style="flex:1"></div><div class="m">SCROLLS · 1 OF 2</div></div>
+<div class="col" style="flex:1;padding:16px 22px;gap:15px;overflow:hidden">
+<div class="row" style="gap:14px;align-items:flex-start"><div class="col" style="gap:7px;flex:1"><div class="m2">AVATAR</div><div class="row" style="gap:8px;flex-wrap:wrap"><div class="av" style="width:44px;height:44px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div class="av" style="width:44px;height:44px"></div><div class="av" style="width:44px;height:44px"></div><div class="av" style="width:44px;height:44px"></div><div class="av" style="width:44px;height:44px"></div><div class="av" style="width:44px;height:44px"></div><div class="av" style="width:44px;height:44px"></div><div class="av dsh" style="width:44px;height:44px;background:none;display:grid;place-items:center">↑</div></div></div>
+<div class="col" style="gap:7px;width:250px"><div class="m2">DISPLAY NAME</div><div class="fld"><span>Donk Kong</span><span class="m">✎</span></div><div style="font-size:12px;opacity:.5">Once every 30 days.</div></div></div>
+<div class="row" style="gap:18px;align-items:flex-start">
+<div class="col" style="gap:7px"><div class="m2">CARD BACKS</div><div class="row" style="gap:7px"><div class="cd b" style="width:32px;height:44px;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="cd" style="width:32px;height:44px;background:var(--ink)"></div><div class="cd" style="width:32px;height:44px"></div><div class="cd hatch" style="width:32px;height:44px"></div><div class="cd" style="width:32px;height:44px;background:var(--ac);border-color:var(--ac)"></div></div></div>
+<div class="col" style="gap:7px"><div class="m2">CARD FACES</div><div class="row" style="gap:8px"><div class="bx col" style="padding:5px 7px;gap:3px;border-width:3px"><div class="row" style="gap:3px"><div class="cd" style="width:20px;height:28px;font-size:10px">A♠</div><div class="cd" style="width:20px;height:28px;font-size:10px">K♥</div></div><div class="m">2-COL</div></div><div class="bx col" style="padding:5px 7px;gap:3px"><div class="row" style="gap:3px"><div class="cd" style="width:20px;height:28px;font-size:10px">A♣</div><div class="cd" style="width:20px;height:28px;font-size:10px">K♦</div></div><div class="m">4-COL</div></div><div class="bx col" style="padding:5px 7px;gap:3px"><div class="row" style="gap:3px"><div class="cd" style="width:20px;height:28px;font-size:14px">A</div><div class="cd" style="width:20px;height:28px;font-size:14px">K</div></div><div class="m">BIG</div></div></div></div>
+<div class="col" style="gap:7px;flex:1"><div class="m2">CHIP SET</div><div class="row" style="gap:8px"><div class="av" style="width:32px;height:32px;background:var(--ink);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="av" style="width:32px;height:32px;background:rgba(22,21,15,.45)"></div><div class="av" style="width:32px;height:32px"></div><div class="av hatch" style="width:32px;height:32px"></div><div class="av" style="width:32px;height:32px;background:var(--ac);border-color:var(--ac)"></div></div></div>
+</div>
+<div class="row" style="gap:18px;align-items:flex-start">
+<div class="col" style="gap:7px;flex:1"><div class="m2">TABLE FELT</div><div class="row" style="gap:8px;flex-wrap:wrap"><div class="sw" style="width:52px;height:34px;background:rgba(22,21,15,.08);box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="sw" style="width:52px;height:34px;background:rgba(22,21,15,.3)"></div><div class="sw hatch" style="width:52px;height:34px"></div><div class="sw" style="width:52px;height:34px;background:var(--ink)"></div><div class="sw" style="width:52px;height:34px;background:#fff"></div><div class="sw" style="width:52px;height:34px;background:var(--ac);border-color:var(--ac)"></div></div></div>
+<div class="col" style="gap:7px;flex:1"><div class="m2">BACKGROUND</div><div class="row" style="gap:8px"><div class="sw" style="width:52px;height:34px;background:#fff;box-shadow:0 0 0 2px #fff,0 0 0 4px var(--ac)"></div><div class="sw hatch" style="width:52px;height:34px"></div><div class="sw" style="width:52px;height:34px;background:rgba(22,21,15,.5)"></div><div class="sw" style="width:52px;height:34px;background:var(--ink)"></div></div></div>
+</div>
+<div class="col" style="gap:7px"><div class="m2">FOLD ANIMATION</div><div class="row" style="gap:10px">
+<div class="bx col" style="padding:8px 10px;gap:6px;border-width:3px"><div class="row" style="gap:4px;align-items:center"><div class="cd b" style="width:16px;height:22px"></div><span class="m">→</span><div class="cd b" style="width:16px;height:22px;opacity:.5"></div><span class="m">→</span><div class="cd b" style="width:16px;height:22px;opacity:.15"></div></div><div class="m2">SLIDE AWAY</div></div>
+<div class="bx col" style="padding:8px 10px;gap:6px"><div class="row" style="gap:4px;align-items:center"><div class="cd b" style="width:16px;height:22px"></div><span class="m">→</span><div class="cd b" style="width:16px;height:22px;opacity:.4"></div><span class="m">→</span><div class="cd dsh" style="width:16px;height:22px;background:none"></div></div><div class="m2">FADE OUT</div></div>
+<div class="bx col" style="padding:8px 10px;gap:6px"><div class="row" style="gap:4px;align-items:center"><div class="cd b" style="width:16px;height:22px"></div><span class="m">→</span><div class="cd b" style="width:16px;height:22px;transform:rotate(20deg)"></div><span class="m">→</span><div class="cd b" style="width:16px;height:22px;transform:rotate(48deg);opacity:.3"></div></div><div class="m2">FLICK IT</div></div>
+</div></div>
+<div class="row dsh" style="padding:9px 12px;justify-content:center;color:rgba(22,21,15,.5);font-size:13px">↓ Sounds, chat filters, blocked players</div>
+</div>
+<div class="row" style="border-top:2px solid var(--ink);padding:11px 20px;gap:12px;align-items:center"><div class="m2">3 UNSAVED CHANGES</div><div style="flex:1"></div><sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">NO PREVIEW = PEOPLE GUESS AND BOUNCE BACK</div></sc-if><div class="bt g">Discard</div><div class="bt a">Save</div></div>
+</div></div></div>
+
+</div>
+
+<div class="grp">After the game — win, bust, rebuy, spectate, staking</div>
+<div class="dv-opts">
+
+<div class="dv-opt" id="1s"><div class="dv-olabel"><a class="dv-oid" href="#1s">1s</a>Victory — podium, full results, and "run it back" as the loudest button.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="pill" style="font-size:11px">Turbo 9-max · finished</div><div style="flex:1"></div><div class="m">1H 12M · 214 HANDS</div><div class="bt s g">Back to lobby</div></div>
+<div class="row hatch" style="height:8px;flex:none"></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;padding:18px 24px;gap:14px;border-right:2px solid var(--ink)">
+<div class="col" style="gap:4px"><div style="font-size:36px;line-height:1.05">You took it down.</div><div style="font-size:15px;opacity:.6">Nine started. You closed it out heads-up in 41 hands.</div></div>
+<div class="row" style="gap:12px;align-items:flex-end;padding:6px 0">
+<div class="col" style="align-items:center;gap:6px;flex:1"><div class="av" style="width:44px;height:44px"></div><div style="font-size:14px">Bea</div><div class="bx" style="width:100%;height:52px;display:grid;place-items:center;font-size:20px">2nd</div><div class="m2">+2,700</div></div>
+<div class="col" style="align-items:center;gap:6px;flex:1"><div class="av" style="width:60px;height:60px;border-width:3px;box-shadow:0 0 0 3px #fff,0 0 0 5px var(--ac)"></div><div style="font-size:16px">You</div><div class="bx" style="width:100%;height:84px;display:grid;place-items:center;font-size:26px;background:var(--ink);color:#fff">1st</div><div class="m2" style="color:var(--ac)">+4,500</div></div>
+<div class="col" style="align-items:center;gap:6px;flex:1"><div class="av" style="width:40px;height:40px"></div><div style="font-size:14px">Kyle</div><div class="bx" style="width:100%;height:36px;display:grid;place-items:center;font-size:18px">3rd</div><div class="m2">+1,800</div></div>
+</div>
+<div class="row" style="gap:10px"><div class="bt a" style="flex:1;font-size:17px;padding:12px">Run it back — same settings</div><div class="bt" style="font-size:15px">Share results</div></div>
+<div class="row" style="gap:9px"><div class="col dsh" style="flex:1;padding:8px 10px;gap:2px"><div class="m">FLOPS SEEN</div><div style="font-size:20px">34%</div></div><div class="col dsh" style="flex:1;padding:8px 10px;gap:2px"><div class="m">BEST POSITION</div><div style="font-size:20px">BTN +880</div></div><div class="col dsh" style="flex:1;padding:8px 10px;gap:2px"><div class="m">BIGGEST POT</div><div style="font-size:20px">1,120</div></div></div>
+</div>
+<div class="col" style="width:300px;padding:16px 18px;gap:9px">
+<div class="row"><div class="m2">FINAL TABLE</div><div style="flex:1"></div><div class="m">HAND HISTORY ↗</div></div>
+<div class="col bx" style="padding:0;overflow:hidden">
+<div class="row" style="padding:6px 11px;border-bottom:2px solid var(--ink);background:rgba(22,21,15,.05)"><span class="m" style="width:26px">#</span><span class="m" style="flex:1">PLAYER</span><span class="m" style="width:62px;text-align:right">RESULT</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14);background:rgba(184,69,31,.07)"><span style="width:26px;font-size:14px">1</span><span style="flex:1;font-size:14px">You</span><span style="width:62px;text-align:right;font-size:14px;color:var(--ac)">+4,500</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">2</span><span style="flex:1;font-size:14px">Bea</span><span style="width:62px;text-align:right;font-size:14px">+2,700</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">3</span><span style="flex:1;font-size:14px">Kyle</span><span style="width:62px;text-align:right;font-size:14px">+1,800</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">4</span><span style="flex:1;font-size:14px">Jas</span><span style="width:62px;text-align:right;font-size:14px;opacity:.5">—</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">5</span><span style="flex:1;font-size:14px">Dev</span><span style="width:62px;text-align:right;font-size:14px;opacity:.5">—</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">6</span><span style="flex:1;font-size:14px">Ren</span><span style="width:62px;text-align:right;font-size:14px;opacity:.5">—</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">7</span><span style="flex:1;font-size:14px">Nia</span><span style="width:62px;text-align:right;font-size:14px;opacity:.5">—</span></div>
+<div class="row" style="padding:6px 11px;border-bottom:1px solid rgba(22,21,15,.14)"><span style="width:26px;font-size:14px">8</span><span style="flex:1;font-size:14px">Mo</span><span style="width:62px;text-align:right;font-size:14px;opacity:.5">—</span></div>
+<div class="row" style="padding:6px 11px"><span style="width:26px;font-size:14px">9</span><span style="flex:1;font-size:14px">Tay</span><span style="width:62px;text-align:right;font-size:14px;opacity:.5">—</span></div>
+</div>
+<div class="row dsh" style="padding:8px 10px;gap:8px;align-items:center"><div class="av" style="width:22px;height:22px"></div><span style="font-size:13px;flex:1;line-height:1.35">Kyle already opened a cash table</span><div class="bt s" style="padding:3px 9px;font-size:12px">Join</div></div>
+<div style="flex:1"></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">THE NEXT GAME IS THE REAL CTA — DON'T BURY IT UNDER CONFETTI.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1t"><div class="dv-olabel"><a class="dv-oid" href="#1t">1t</a>Busted — rebuy on a countdown so the seat doesn't go cold, spectate as the soft exit.</div><div class="dv-card"><div class="f">
+<div style="position:absolute;inset:0;opacity:.24">
+<div class="top"><div style="font-size:18px">FELT</div></div>
+<div style="position:relative;height:520px"><div class="felt" style="inset:50px 130px 110px">
+<div class="row" style="position:absolute;left:50%;top:42%;transform:translate(-50%,-50%);gap:5px"><div class="cd">A♠</div><div class="cd">7♦</div><div class="cd">2♣</div><div class="cd">K♥</div><div class="cd">3♠</div></div>
+<div class="st" style="left:50%;top:100%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:0%;top:34%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:100%;top:34%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:36%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+<div class="st" style="left:64%;top:-4%"><div class="av" style="width:22px;height:22px"></div><div class="ln" style="flex:1"></div></div>
+</div></div>
+</div>
+<div class="col" style="position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:452px;background:#fff;padding:24px 26px;gap:14px;border:2px solid var(--ink);border-radius:12px 6px 14px 8px;box-shadow:9px 9px 0 rgba(22,21,15,.14)">
+<div class="col" style="gap:3px"><div style="font-size:30px;line-height:1.1">Rivered. Brutal.</div><div style="font-size:14px;opacity:.6">Your kings ran into a three-outer. It happens to everyone, allegedly.</div></div>
+<div class="row bx" style="padding:9px 11px;gap:10px;align-items:center"><div class="row" style="gap:3px"><div class="cd" style="width:20px;height:28px;font-size:11px">K♠</div><div class="cd" style="width:20px;height:28px;font-size:11px">K♦</div></div><span class="m">VS</span><div class="row" style="gap:3px"><div class="cd" style="width:20px;height:28px;font-size:11px">A♥</div><div class="cd" style="width:20px;height:28px;font-size:11px">3♦</div></div><div style="flex:1"></div><div class="bt s" style="padding:4px 10px;font-size:12px">▶ Replay hand #214</div></div>
+<div class="col" style="gap:8px"><div class="row"><div class="m2">BUY BACK IN</div><div style="flex:1"></div><div class="m2" style="color:var(--ac)">SEAT HELD 0:47</div></div>
+<div class="row" style="gap:9px"><div class="bt" style="flex:1;flex-direction:column;gap:3px;padding:9px"><span style="font-size:18px">100</span><span class="m">50 BB</span></div><div class="bt a" style="flex:1;flex-direction:column;gap:3px;padding:9px"><span style="font-size:18px">200</span><span class="m" style="opacity:.8">100 BB · TYPICAL</span></div><div class="bt" style="flex:1;flex-direction:column;gap:3px;padding:9px"><span style="font-size:18px">400</span><span class="m">MAX</span></div></div>
+<div class="row" style="justify-content:space-between"><span class="m">REBUY 2 OF 3 TONIGHT</span><span class="m">DOWN 340 THIS SESSION</span></div></div>
+<div class="bt a" style="font-size:17px;padding:11px">Sit back down — 200</div>
+<div class="row" style="gap:9px"><div class="bt" style="flex:1">Watch from the rail</div><div class="bt g" style="flex:1">Call it a night</div></div>
+<div class="row dsh" style="padding:9px 11px;gap:9px;align-items:center;opacity:.75"><div class="bx hatch" style="width:26px;height:26px;border-radius:6px"></div><div class="col" style="flex:1;gap:2px"><div style="font-size:13px">Get staked for the rest of the night</div><div class="m" style="opacity:.5">SOMEONE ON THE RAIL COVERS YOUR REBUY FOR A CUT</div></div><div class="pill" style="font-size:10px;padding:2px 8px;opacity:.6">Later</div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">STAKING SKETCHED LIGHTLY — PARK IT UNTIL THE CORE LOOP IS PROVEN.</div></sc-if>
+</div>
+</div></div></div>
+
+<div class="dv-opt" id="1u"><div class="dv-olabel"><a class="dv-oid" href="#1u">1u</a>Session summary + spectator mode — you're out, the game isn't. Staking parked in a corner.</div><div class="dv-card"><div class="f">
+<div class="top" style="padding:8px 16px"><div style="font-size:17px">FELT</div><div class="pill" style="font-size:11px">Busted 6th of 9</div><div style="flex:1"></div><div class="m">KYLE'S THURSDAY GAME · STILL RUNNING</div></div>
+<div class="row" style="flex:1;align-items:stretch">
+<div class="col" style="flex:1;padding:18px 22px;gap:13px;border-right:2px solid var(--ink)">
+<div class="col" style="gap:3px"><div style="font-size:28px;line-height:1.1">Out in 6th. Down 340.</div><div style="font-size:14px;opacity:.6">You saw a lot of flops and paid for most of them.</div></div>
+<div class="col dsh" style="padding:11px 13px;gap:7px;flex:1;min-height:0"><div class="row"><div class="m">CHIP STACK · 3 HOURS</div><div style="flex:1"></div><div class="m">PEAK 2,410</div></div><div class="hatch" style="flex:1;border-radius:5px;min-height:80px"></div><div class="m" style="opacity:.45;text-align:center">LINE CHART PLACEHOLDER</div></div>
+<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:9px">
+<div class="col bx" style="padding:8px 10px;gap:2px"><div class="m">HANDS</div><div style="font-size:19px">214</div></div>
+<div class="col bx" style="padding:8px 10px;gap:2px"><div class="m">FLOPS SEEN</div><div style="font-size:19px">34%</div></div>
+<div class="col bx" style="padding:8px 10px;gap:2px"><div class="m">SHOWDOWN W</div><div style="font-size:19px">61%</div></div>
+<div class="col bx" style="padding:8px 10px;gap:2px"><div class="m">BEST SEAT</div><div style="font-size:19px">BTN</div></div>
+</div>
+<div class="row" style="gap:10px"><div class="bt a" style="flex:1;padding:11px;font-size:16px">Rematch — same settings</div><div class="bt" style="padding:11px;font-size:16px">New lobby</div><div class="bt s g">Export hands</div></div>
+</div>
+<div class="col" style="width:326px;padding:16px 18px;gap:11px">
+<div class="row"><div class="m2">STILL PLAYING · 3 LEFT</div><div style="flex:1"></div><div class="m">LVL 9 · 200/400</div></div>
+<div class="bx" style="position:relative;height:158px;overflow:hidden">
+<div class="felt" style="inset:22px 30px 34px">
+<div class="row" style="position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);gap:3px"><div class="cd" style="width:17px;height:24px;font-size:9px">9♠</div><div class="cd" style="width:17px;height:24px;font-size:9px">Q♦</div><div class="cd" style="width:17px;height:24px;font-size:9px">4♣</div></div>
+<div class="st" style="left:50%;top:100%;width:76px;padding:3px 5px"><div class="av" style="width:15px;height:15px"></div><div class="m">BEA 8.2K</div></div>
+<div class="st" style="left:0%;top:28%;width:66px;padding:3px 5px"><div class="av" style="width:15px;height:15px"></div><div class="m">KYLE 12K</div></div>
+<div class="st" style="left:100%;top:28%;width:66px;padding:3px 5px"><div class="av" style="width:15px;height:15px"></div><div class="m">JAS 4.8K</div></div>
+</div>
+<div class="pill" style="position:absolute;left:8px;top:8px;font-size:10px;padding:2px 8px;background:var(--ink);color:#fff">Spectating</div>
+</div>
+<div class="row" style="gap:8px"><div class="bt" style="flex:1">Watch full screen</div><div class="bt s g">Hide hole cards</div></div>
+<div class="col bx" style="padding:9px 11px;gap:6px"><div class="m2">RAIL CHAT</div><div style="font-size:13px;opacity:.7;line-height:1.45">You: kyle is going to punt this<br>Ren: he always does<br>Mo: 🍗</div><div class="fld" style="padding:5px 9px"><span style="opacity:.4;font-size:13px">Heckle from the rail…</span></div></div>
+<div style="flex:1"></div>
+<div class="col dsh" style="padding:11px 13px;gap:7px"><div class="row"><div class="m2" style="opacity:.55">STAKING · SKETCH ONLY</div><div style="flex:1"></div><div class="pill" style="font-size:10px;padding:1px 7px;opacity:.55">Not built</div></div><div style="font-size:13px;opacity:.6;line-height:1.45">Back a player you're railing — buy a slice of their action, split what they win.</div><div class="row" style="gap:7px;opacity:.5"><div class="pill" style="font-size:11px">10%</div><div class="pill" style="font-size:11px">25%</div><div class="pill" style="font-size:11px">50%</div><div class="bt s g" style="flex:1">Back Bea</div></div></div>
+<sc-if value="{{ showCallouts }}" hint-placeholder-val="{{ true }}"><div class="cal">SPECTATING KEEPS BUSTED PLAYERS IN THE ROOM — THAT'S WHERE REBUYS COME FROM.</div></sc-if>
+</div>
+</div>
+</div></div></div>
+
+</div>
+
+<p class="dv-next">Try next: "build out <a class="dv-oid" href="#1j">1j</a> as the real table, other options can go" · "merge <a class="dv-oid" href="#1h">1h</a>'s presets into <a class="dv-oid" href="#1g">1g</a>'s form" · "new directions for the post-game screens"</p>
+</section>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;showCallouts&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;Wireframe&quot;,&quot;label&quot;:&quot;Show red marker notes&quot;},&quot;seatCount&quot;:{&quot;editor&quot;:&quot;enum&quot;,&quot;options&quot;:[&quot;6&quot;,&quot;7&quot;,&quot;8&quot;,&quot;9&quot;],&quot;default&quot;:&quot;9&quot;,&quot;tsType&quot;:&quot;string&quot;,&quot;section&quot;:&quot;Wireframe&quot;,&quot;label&quot;:&quot;Seats at the table&quot;}}">
+class Component extends DCLogic {
+  renderVals() {
+    const n = parseInt(this.props.seatCount ?? 9, 10) || 9;
+    return {
+      showCallouts: this.props.showCallouts ?? true,
+      s7: n >= 7, s8: n >= 8, s9: n >= 9,
+      seatLabel: n + " seats"
+    };
+  }
+}
+</script>
+</body>
+</html>
