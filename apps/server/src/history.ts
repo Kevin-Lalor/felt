@@ -5,13 +5,20 @@
 import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 
+/** Seeds are recorded positionally. The old shape was `Record<name, seed>`,
+ *  which broke verification the moment a player renamed on reconnect. */
+export type ClientSeedRecord = { seat: number; name: string; seed: string; postCommit: boolean };
+
 export type HandRecord = {
+  /** Stable across restarts: `${sessionId}-${handNumber}`. handNumber alone
+   *  resets to 0 on restart while this file persists, so it is not unique. */
+  handId: string;
   handNumber: number;
   at: string;
   tableName: string;
   commit: string;
   serverSeed: string;
-  clientSeeds: Record<string, string>;
+  clientSeeds: ClientSeedRecord[];
   button: number;
   blinds: { smallBlind: number; bigBlind: number; ante: number };
   seats: {
@@ -43,7 +50,15 @@ export class HandHistory {
       .map((line) => JSON.parse(line) as HandRecord);
   }
 
-  find(handNumber: number): HandRecord | undefined {
-    return this.readAll().find((r) => r.handNumber === handNumber);
+  /** Look up by stable handId, or by handNumber for convenience. handNumber can
+   *  repeat across server restarts, so the MOST RECENT match wins. */
+  find(idOrNumber: string): HandRecord | undefined {
+    const all = this.readAll();
+    const byId = all.find((r) => r.handId === idOrNumber);
+    if (byId) return byId;
+    const n = Number(idOrNumber);
+    if (!Number.isFinite(n)) return undefined;
+    const matches = all.filter((r) => r.handNumber === n);
+    return matches[matches.length - 1];
   }
 }

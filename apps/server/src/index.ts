@@ -46,11 +46,22 @@ if (existsSync(webDist)) {
 
 app.get('/api/health', async () => ({ ok: true, table: TABLE_NAME }));
 
-// Hand histories are public to the table — transparency is the product.
+// Hand histories are public TO THE TABLE — not to the internet. The WebSocket
+// has always required the invite code; these routes did not, so behind a public
+// tunnel URL they served every hole card, client seed and revealed server seed
+// to anyone holding the link.
+app.addHook('onRequest', async (req, reply) => {
+  if (!req.url.startsWith('/api/history') && !req.url.startsWith('/api/fairness')) return;
+  const url = new URL(req.url, 'http://local');
+  const code = url.searchParams.get('code') ?? String(req.headers['x-felt-code'] ?? '');
+  if (code === INVITE_CODE || code === HOST_CODE) return;
+  return reply.code(401).send({ error: 'invite code required' });
+});
+
 app.get('/api/history', async () => history.readAll().slice(-200));
-app.get('/api/history/:handNumber', async (req, reply) => {
-  const handNumber = Number((req.params as { handNumber: string }).handNumber);
-  const record = history.find(handNumber);
+app.get('/api/history/:handId', async (req, reply) => {
+  const { handId } = req.params as { handId: string };
+  const record = history.find(handId);
   if (!record) return reply.code(404).send({ error: 'no such hand' });
   return record;
 });
