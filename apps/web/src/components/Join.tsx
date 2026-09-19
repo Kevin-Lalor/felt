@@ -39,7 +39,7 @@ export function Join() {
           className="join__input join__input--code"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="KYL37"
+          placeholder="ABC123"
           autoComplete="off"
           maxLength={16}
         />

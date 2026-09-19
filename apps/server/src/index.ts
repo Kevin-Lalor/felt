@@ -17,7 +17,10 @@ import { HandHistory } from './history.js';
 const HERE = fileURLToPath(new URL('.', import.meta.url));
 const PORT = Number(process.env['PORT'] ?? 8090);
 const HOST = process.env['HOST'] ?? '0.0.0.0';
-const INVITE_CODE = process.env['INVITE_CODE'] ?? 'KYL37';
+// No default code in source. This repo is public, so a hardcoded fallback would
+// be the working code to a live table for anyone who reads it. Unset means a
+// fresh random one per boot, printed at startup like the host code.
+const INVITE_CODE = process.env['INVITE_CODE'] ?? randomBytes(3).toString('hex').toUpperCase();
 const HOST_CODE = process.env['HOST_CODE'] ?? randomBytes(4).toString('hex').toUpperCase();
 const TABLE_NAME = process.env['TABLE_NAME'] ?? "Kevin's Home Game";
 

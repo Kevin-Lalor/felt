@@ -44,7 +44,7 @@ pnpm --filter @poker/server start
 The server prints your two codes at startup:
 
 ```
-invite code: KYL37      (share this with friends)
+invite code: 7F3A91     (share this with friends)
 host code:   A1B2C3D4   (keep this one — it makes you host)
 ```
 
@@ -69,7 +69,7 @@ cloudflared tunnel --url http://localhost:8090
 
 `cloudflared` prints a `https://something.trycloudflare.com` URL. Text your friends:
 
-> `https://something.trycloudflare.com` — code **KYL37**
+> `https://something.trycloudflare.com` — code **7F3A91**
 
 That's the whole onboarding. On a phone, "Add to Home Screen" installs it as an app.
 For a permanent setup (your own domain + Cloudflare Access email allowlist in front),
