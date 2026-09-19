@@ -32,7 +32,9 @@ and the verifier cannot drift apart unnoticed. Typecheck, lint and build clean.
 
 **Start here:**
 1. Push the branch and open the PR. Turn the reviewer on first:
-   `gh secret set ANTHROPIC_API_KEY`.
+   run `claude setup-token`, then `gh secret set CLAUDE_CODE_OAUTH_TOKEN`.
+   **Use the OAuth token, not an API key** — an OAuth token runs the reviewer on
+   the Max subscription, an `ANTHROPIC_API_KEY` bills the API separately.
 2. Make the repo public (decided 19 Sep). It unlocks branch protection rulesets
    for free — today a red CI run cannot physically block a merge.
 3. Phase 1, in this order: theme picker (**default: Midnight**, decided 19 Sep),
