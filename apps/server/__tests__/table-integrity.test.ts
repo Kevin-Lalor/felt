@@ -17,6 +17,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { ClientMessage, ServerMessage } from '@poker/protocol';
+import { clientMessageSchema } from '@poker/protocol';
 import type { HandRecord } from '../src/history.js';
 import type { TableConfig } from '../src/table.js';
 import { Table } from '../src/table.js';
@@ -430,5 +431,101 @@ describe('the action clock is visible to clients', () => {
 
     const second = h.table.viewFor(ann.id).actionDeadline as number;
     expect(second).toBeGreaterThan(first);
+  });
+});
+
+// ---------------------------------------------------------------------------
+
+describe('player skins are public cosmetics, and only cosmetics', () => {
+  // docs/DESIGN-SYSTEM.md puts chip style and colour in the PLAYER SKIN layer:
+  // chosen by each player, visible to everyone. That visibility is the whole
+  // point, so it has to survive the redaction boundary — while changing
+  // nothing about the game.
+
+  test('a fresh table hands out distinguishable chip colours', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.seat('Cat', 2);
+
+    const seats = h.table.viewFor(ann.id).seats.filter((s) => s.playerId !== null);
+    const colours = seats.map((s) => s.skin.chipColour);
+    expect(colours).toHaveLength(3);
+    expect(new Set(colours).size).toBe(3);
+  });
+
+  test('a skin change reaches every other player, not just the chooser', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    const bob = h.seat('Bob', 1);
+
+    h.table.handle(ann.id, {
+      type: 'setSkin',
+      skin: { chipStyle: 'neon', chipColour: 'purple' },
+    } as ClientMessage);
+
+    // Bob sees Ann's chips, because that is what makes a cosmetic worth picking.
+    const annSeatAsBobSeesIt = h.table.viewFor(bob.id).seats[0];
+    expect(annSeatAsBobSeesIt?.skin).toEqual({ chipStyle: 'neon', chipColour: 'purple' });
+
+    // And a spectator sees it too.
+    expect(h.table.viewFor(null).seats[0]?.skin.chipColour).toBe('purple');
+  });
+
+  test('an unknown cosmetic id never reaches the table', () => {
+    // The Zod boundary is what enforces the catalogue — cosmetics.json says
+    // "Server validates the id is in this list". This asserts the schema does
+    // reject, rather than the table quietly storing junk.
+    const bad = clientMessageSchema.safeParse({
+      type: 'setSkin',
+      skin: { chipStyle: 'holographic', chipColour: 'red' },
+    });
+    expect(bad.success).toBe(false);
+
+    const badColour = clientMessageSchema.safeParse({
+      type: 'setSkin',
+      skin: { chipStyle: 'casino', chipColour: 'chartreuse' },
+    });
+    expect(badColour.success).toBe(false);
+
+    const good = clientMessageSchema.safeParse({
+      type: 'setSkin',
+      skin: { chipStyle: 'vintage', chipColour: 'green' },
+    });
+    expect(good.success).toBe(true);
+  });
+
+  test('changing a skin mid-hand changes nothing about the hand', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+
+    const before = h.table.viewFor(ann.id);
+    const cardsBefore = before.seats[0]?.holeCards;
+    const deadlineBefore = before.actionDeadline;
+
+    h.table.handle(ann.id, {
+      type: 'setSkin',
+      skin: { chipStyle: 'minimal', chipColour: 'black' },
+    } as ClientMessage);
+
+    const after = h.table.viewFor(ann.id);
+    expect(after.seats[0]?.holeCards).toEqual(cardsBefore);
+    expect(after.actingSeat).toBe(before.actingSeat);
+    expect(after.handNumber).toBe(before.handNumber);
+    // Cosmetics never affect timing (cosmetics.json limits.cosmeticsNeverAffectTiming).
+    expect(after.actionDeadline).toBe(deadlineBefore);
+  });
+
+  test('a skin never carries anything but the two cosmetic fields', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+
+    for (const seat of h.table.viewFor(null).seats) {
+      expect(Object.keys(seat.skin).sort()).toEqual(['chipColour', 'chipStyle']);
+    }
   });
 });

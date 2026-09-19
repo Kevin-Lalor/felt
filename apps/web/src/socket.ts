@@ -40,6 +40,7 @@ function open(): void {
 
   socket.onopen = () => {
     reconnectDelay = 500;
+    skinAnnounced = false; // re-announce after a reconnect
     useStore.getState().setConnected(true);
     if (joinPayload) socket?.send(JSON.stringify(joinPayload));
   };
@@ -52,6 +53,7 @@ function open(): void {
     }
     store.applyServerMessage(parsed);
     rotateSeedIfNeeded();
+    announceSkinOnce(parsed);
   };
   socket.onclose = () => {
     useStore.getState().setConnected(false);
@@ -78,6 +80,19 @@ function rotateSeedIfNeeded(): void {
   const seed = crypto.getRandomValues(new Uint32Array(4)).join('-');
   localStorage.setItem('felt.clientSeed', seed);
   send({ type: 'setClientSeed', seed });
+}
+
+/** A returning player's chip cosmetics are theirs; send them once the server
+ *  has welcomed us. A player who has never picked sends nothing, so the
+ *  server's join-time colour rotation stands. */
+let skinAnnounced = false;
+
+function announceSkinOnce(msg: ServerMessage): void {
+  if (skinAnnounced || msg.type !== 'welcome') return;
+  const skin = useStore.getState().prefs.skin;
+  if (!skin) return;
+  skinAnnounced = true;
+  send({ type: 'setSkin', skin });
 }
 
 export function send(msg: ClientMessage): void {

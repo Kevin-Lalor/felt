@@ -6,14 +6,19 @@
 
 import type { HandState } from '@poker/engine';
 import { encodeCard, legalActions } from '@poker/engine';
-import type { SeatView, TableView } from '@poker/protocol';
+import type { PlayerSkin, SeatView, TableView } from '@poker/protocol';
 
 export type SeatOccupant = {
   playerId: string;
   name: string;
   avatar: number;
+  /** Public cosmetics — see playerSkinSchema in @poker/protocol. */
+  skin: PlayerSkin;
   connected: boolean;
 };
+
+/** Empty seats have no player, so no skin. Never rendered as chips. */
+const NO_SKIN: PlayerSkin = { chipStyle: 'casino', chipColour: 'red' };
 
 export type TableSnapshot = {
   tableName: string;
@@ -67,6 +72,7 @@ function buildSeatView(
     committedThisStreet: handSeat?.committedThisStreet ?? 0,
     isAllIn: handSeat?.isAllIn ?? false,
     hasCards: (handSeat?.holeCards.length ?? 0) > 0 && handSeat?.status !== 'folded',
+    skin: occupant?.skin ?? NO_SKIN,
     connected: occupant?.connected ?? false,
   };
 

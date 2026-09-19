@@ -62,7 +62,16 @@
     "suit-heart":  "{color.suit.heart}",
     "suit-diamond":"{color.suit.monoRed}",
     "suit-club":   "{color.suit.monoDark}",
-    "$note": "Four-colour mode overrides suit-diamond → color.suit.diamond and suit-club → color.suit.club"
+    "$note": "Four-colour mode overrides suit-diamond → color.suit.diamond and suit-club → color.suit.club",
+    "$note-backs": "Card-back colours a PLAYER may choose (docs/adr/0001). Local preference: the back only ever appears on face-down cards, carries no information, and is visible to nobody but the chooser.",
+    "back-mahogany": "{color.rail.mahogany}",
+    "back-walnut":   "{color.rail.walnut}",
+    "back-charcoal": "{color.rail.black}",
+    "back-chrome":   "{color.rail.chrome}",
+    "back-brass":    "{color.rail.brass}",
+    "back-navy":     "{color.felt.navy}",
+    "back-burgundy": "{color.felt.burgundy}",
+    "back-emerald":  "{color.felt.emerald}"
   },
 
   "chip": {
@@ -74,7 +83,17 @@
     "$note": "MEASURED: every chip colour fails 3:1 against every felt on its own (chip red on classic green is 1.58:1). The outline is NOT decorative — it is what makes chips distinguishable from the felt. Never remove it, and include it in the custom-felt contrast check.",
     "stack-overlap": "-22px",
     "denom-font": "{font.family.numeric}",
-    "denom-size": "{font.size.xs}"
+    "denom-size": "{font.size.xs}",
+    "$note-palette": "Chip colours a PLAYER may choose. Player skin: visible to EVERYONE at the table (docs/DESIGN-SYSTEM.md), so it travels in the protocol. Every one of these fails 3:1 on every felt on its own — chip.outline above is what makes them legible, and it is not optional.",
+    "red":    "{color.chip.red}",
+    "blue":   "{color.chip.blue}",
+    "green":  "{color.chip.green}",
+    "black":  "{color.chip.black}",
+    "purple": "{color.chip.purple}",
+    "yellow": "{color.chip.yellow}",
+    "orange": "{color.chip.orange}",
+    "pink":   "{color.chip.pink}",
+    "white":  "{color.chip.white}"
   },
 
   "pot": {

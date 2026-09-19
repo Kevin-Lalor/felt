@@ -62,6 +62,7 @@ function snapshotFor(state: HandState, playerCount: number): TableSnapshot {
       playerId: `player-${i}`,
       name: `P${i}`, // names deliberately can never collide with a card encoding
       avatar: 0,
+      skin: { chipStyle: 'casino' as const, chipColour: 'red' as const },
       connected: true,
     })),
     idleStacks: Array(playerCount).fill(0),

@@ -7,6 +7,7 @@ import { AVATARS } from './Join';
 import { ActionBar } from './ActionBar';
 import { Rail } from './Rail';
 import { Settings } from './Settings';
+import { ChipStack } from './Chips';
 import { formatClock, useCountdown } from '../clock';
 import { bbLabel } from '../prefs';
 
@@ -33,8 +34,10 @@ function SeatPlate({
   award,
   bigBlind,
   showBB,
+  unit,
   clock,
   onSit,
+  onToggleUnit,
 }: {
   seat: SeatView;
   isHero: boolean;
@@ -43,9 +46,13 @@ function SeatPlate({
   award: number;
   bigBlind: number;
   showBB: boolean;
+  /** What this plate's stack reads in. Only your own seat is ever 'bb'. */
+  unit: 'chips' | 'bb';
   /** Set only on the seat that is actually on the clock. */
   clock: { msLeft: number; totalMs: number } | null;
   onSit: (() => void) | null;
+  /** Set only on your own seat, and only while the table-wide BB toggle is off. */
+  onToggleUnit: (() => void) | null;
 }) {
   if (seat.playerId === null) {
     return onSit ? (
@@ -71,11 +78,14 @@ function SeatPlate({
 
   const cards = seat.holeCards ?? seat.shownCards;
   const stackBB = bbLabel(seat.stack, bigBlind, showBB);
+  // Your own plate can read in big blinds INSTEAD of chips — one click, and it
+  // changes nothing for anyone else at the table.
+  const bbOnly = bbLabel(seat.stack, bigBlind, true);
   const fraction = clock ? clock.msLeft / clock.totalMs : 1;
   const urgency = fraction < 0.2 ? ' seat__timer--critical' : fraction < 0.5 ? ' seat__timer--urgent' : '';
 
-  return (
-    <div className={classes}>
+  const body = (
+    <>
       <span className="seat__avatar" aria-hidden>
         {AVATARS[seat.avatar ?? 0]}
         {isButton && <span className="seat__button-disc" title="dealer button">D</span>}
@@ -90,6 +100,8 @@ function SeatPlate({
             'FOLDED'
           ) : seat.isAllIn ? (
             'ALL IN'
+          ) : unit === 'bb' && bbOnly ? (
+            bbOnly
           ) : (
             <>
               {seat.stack.toLocaleString()}
@@ -107,7 +119,14 @@ function SeatPlate({
             : null}
       </span>
       {seat.committedThisStreet > 0 && (
-        <span className="seat__bet">{seat.committedThisStreet.toLocaleString()}</span>
+        <span className="seat__bet">
+          {/* This player's own chips, in their own colour — everyone sees the
+              same thing, which is how you tell whose bet is whose. */}
+          <ChipStack amount={seat.committedThisStreet} skin={seat.skin} size="sm" />
+          <span className="seat__bet-amount">
+            {seat.committedThisStreet.toLocaleString()}
+          </span>
+        </span>
       )}
       {award > 0 && <span className="seat__award">+{award.toLocaleString()}</span>}
       {clock && (
@@ -117,8 +136,22 @@ function SeatPlate({
           aria-hidden
         />
       )}
-    </div>
+    </>
   );
+
+  if (onToggleUnit) {
+    return (
+      <button
+        className={`${classes} seat--clickable`}
+        onClick={onToggleUnit}
+        title={unit === 'bb' ? 'Showing big blinds — click for chips' : 'Showing chips — click for big blinds'}
+        aria-label={`Your stack, showing ${unit === 'bb' ? 'big blinds' : 'chips'}. Click to swap.`}
+      >
+        {body}
+      </button>
+    );
+  }
+  return <div className={classes}>{body}</div>;
 }
 
 export function Table() {
@@ -134,6 +167,7 @@ export function Table() {
   // moment the first state frame arrives and React throws.
   const showdownThisHand = useStore((s) => s.showdownThisHand);
   const prefs = useStore((s) => s.prefs);
+  const setPref = useStore((s) => s.setPref);
   const [settingsOpen, setSettingsOpen] = useState(false);
   const msLeft = useCountdown(view?.actionDeadline ?? null);
 
@@ -259,6 +293,12 @@ export function Table() {
                     award={view.street === 'complete' ? (awardBySeat.get(seat.index) ?? 0) : 0}
                     bigBlind={bigBlind}
                     showBB={prefs.showBB}
+                    unit={seat.index === hero && !prefs.showBB ? prefs.heroUnit : 'chips'}
+                    onToggleUnit={
+                      seat.index === hero && !prefs.showBB
+                        ? () => setPref({ heroUnit: prefs.heroUnit === 'bb' ? 'chips' : 'bb' })
+                        : null
+                    }
                     clock={
                       view.actingSeat === seat.index && msLeft !== null
                         ? { msLeft, totalMs: view.actionClockMs }

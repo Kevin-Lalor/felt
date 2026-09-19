@@ -45,9 +45,19 @@ and the verifier cannot drift apart unnoticed. Typecheck, lint and build clean.
 `· 620BB` suffix behind a toggle; and the settings panel exists, built from wireframe 1p —
 two panes plus a pinned mini-table preview. Default theme is Midnight. 128 tests pass.
 
-Settings only offers options that actually do something: theme, deck colour, motion speed and
-the BB toggle. `cosmetics.json` still catalogues fold styles, chip styles and throwables that
-nothing reads — do not build pickers for those until there is an implementation behind them.
+**Cosmetics followed** (branch `feat/cosmetics-card-backs-and-chips`): per-player card back
+pattern and colour; chips that actually render, in each player's own colour and style, visible
+to the whole table; and clicking your own seat plate swaps it between chips and big blinds while
+the table-wide toggle stays off.
+
+Card backs moved from the host's table theme to a local preference — `docs/adr/0001` records why
+and what would reverse it. That is the repo's first ADR; `docs/adr/` had been empty since day
+one despite `CLAUDE.md` requiring one for architectural changes.
+
+Settings still only offers options that actually do something: theme, deck colour, card back,
+chip style and colour, motion speed, BB display. `cosmetics.json` continues to catalogue fold
+styles, chip shuffles, emote packs and throwables that nothing reads — do not build pickers for
+those until there is an implementation behind them.
 
 **Decisions taken 2026-09-19:**
 - Default theme: **Midnight**. Settings surface: **wireframe 1p**.
