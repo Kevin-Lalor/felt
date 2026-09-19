@@ -28,6 +28,9 @@ export type TableSnapshot = {
   shownCards: ReadonlyMap<number, readonly string[]>;
   /** Showdown reveals from the finished hand. Public. */
   showdownSeats: ReadonlySet<number>;
+  /** Action clock: when the current actor's time runs out, and its full length. */
+  actionDeadline: number | null;
+  actionClockMs: number;
   blinds: { smallBlind: number; bigBlind: number; ante: number };
   /** Mirrors the wire shape exactly so buildView passes it straight through. */
   fairness: TableView['fairness'];
@@ -131,6 +134,8 @@ export function buildView(snapshot: TableSnapshot, viewerPlayerId: string | null
     blinds: snapshot.blinds,
     seats,
     yourSeat: yourSeatOrNull,
+    actionDeadline: acting === null ? null : snapshot.actionDeadline,
+    actionClockMs: snapshot.actionClockMs,
     legal: legal
       ? {
           canFold: legal.canFold,

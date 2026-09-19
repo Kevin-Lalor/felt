@@ -70,6 +70,8 @@ function snapshotFor(state: HandState, playerCount: number): TableSnapshot {
     shownCards: new Map(),
     showdownSeats: new Set(), // reveals happen via engine events; fuzz the strictest case
     blinds: { smallBlind: 1, bigBlind: 2, ante: 0 },
+    actionDeadline: null,
+    actionClockMs: 45_000,
     fairness: null,
   };
 }

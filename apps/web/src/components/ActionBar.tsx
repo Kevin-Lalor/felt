@@ -1,11 +1,13 @@
 import { useEffect, useMemo, useState } from 'react';
 import { send } from '../socket';
 import { useStore } from '../store';
+import { formatClock, useCountdown } from '../clock';
 
 export function ActionBar() {
   const view = useStore((s) => s.view);
   const legal = view?.legal ?? null;
   const [sizing, setSizing] = useState<number | null>(null);
+  const msLeft = useCountdown(view?.actionDeadline ?? null);
 
   const bounds = useMemo(() => {
     if (!legal) return null;
@@ -71,6 +73,11 @@ export function ActionBar() {
   return (
     <footer className="actionbar">
       <div className="actionbar__row actionbar__row--info">
+        {msLeft !== null && (
+          <span className={`pill${msLeft < 10_000 ? ' pill--warn' : ' pill--accent'}`}>
+            {formatClock(msLeft)}
+          </span>
+        )}
         {potOdds && <span className="pill pill--accent">{potOdds}</span>}
         <span className="actionbar__spacer" />
         <span className="actionbar__keys">F fold · C check/call · R raise · A all-in</span>

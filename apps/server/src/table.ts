@@ -76,6 +76,8 @@ export class Table {
   private handActions: { seat: number; action: string; to?: number }[] = [];
   readonly chipLog: ChipLogEntry[] = [];
   private actionTimer: NodeJS.Timeout | null = null;
+  /** When the current actor's clock expires. Broadcast so clients can draw it. */
+  private actionDeadline: number | null = null;
   private nextHandTimer: NodeJS.Timeout | null = null;
 
   constructor(
@@ -536,6 +538,7 @@ export class Table {
     this.clearActionTimer();
     const hand = this.hand;
     if (!hand || hand.actingSeat === null) return;
+    this.actionDeadline = Date.now() + ACTION_CLOCK_MS;
     const actingSeat = hand.actingSeat;
     const handNumber = this.handNumber;
     this.actionTimer = setTimeout(() => {
@@ -557,6 +560,7 @@ export class Table {
   private clearActionTimer(): void {
     if (this.actionTimer) clearTimeout(this.actionTimer);
     this.actionTimer = null;
+    this.actionDeadline = null;
   }
 
   private clearTimers(): void {
@@ -593,6 +597,8 @@ export class Table {
       handNumber: this.handNumber,
       shownCards: this.shownCards,
       showdownSeats: this.showdownSeats,
+      actionDeadline: this.actionDeadline,
+      actionClockMs: ACTION_CLOCK_MS,
       blinds: {
         smallBlind: this.config.smallBlind,
         bigBlind: this.config.bigBlind,

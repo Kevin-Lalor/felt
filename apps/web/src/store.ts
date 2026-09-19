@@ -1,5 +1,7 @@
 import { create } from 'zustand';
 import type { ServerMessage, TableView } from '@poker/protocol';
+import { applyPrefs, loadPrefs, savePrefs } from './prefs';
+import type { Prefs } from './prefs';
 
 export type ChatLine = {
   kind: 'chat' | 'emote' | 'system' | 'dealer';
@@ -24,6 +26,9 @@ type Store = {
   lastReveal: { handNumber: number; serverSeed: string; commit: string } | null;
   awards: { seat: number; amount: number; label?: string; at: number }[];
   showdownThisHand: boolean;
+  /** Local display preferences. Never sent to the server. */
+  prefs: Prefs;
+  setPref: (patch: Partial<Prefs>) => void;
   applyServerMessage: (msg: ServerMessage) => void;
   setConnected: (connected: boolean) => void;
   reset: () => void;
@@ -43,6 +48,14 @@ export const useStore = create<Store>((set, get) => ({
   lastReveal: null,
   awards: [],
   showdownThisHand: false,
+  prefs: loadPrefs(),
+
+  setPref: (patch) => {
+    const next = { ...get().prefs, ...patch };
+    applyPrefs(next);
+    savePrefs(next);
+    set({ prefs: next });
+  },
 
   setConnected: (connected) => set({ connected }),
   reset: () => set({ phase: 'join', view: null, playerId: null }),

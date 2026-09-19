@@ -352,3 +352,83 @@ describe('verifiability — a record survives a rename and re-derives offline', 
     expect(output).not.toContain('FAILED');
   }, 60_000);
 });
+
+// ---------------------------------------------------------------------------
+
+describe('the action clock is visible to clients', () => {
+  // The server has run a 45s clock since the first version, but tableViewSchema
+  // had no field for it, so no client could draw a countdown. These assert the
+  // deadline actually reaches the view — and that it is the same for everyone,
+  // because a per-viewer clock would be an information asymmetry.
+
+  test('no hand in progress, no deadline', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+
+    const view = h.table.viewFor(ann.id);
+    expect(view.actingSeat).toBeNull();
+    expect(view.actionDeadline).toBeNull();
+    expect(view.actionClockMs).toBeGreaterThan(0);
+  });
+
+  test('a live hand carries a deadline inside the clock window', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+
+    const view = h.table.viewFor(ann.id);
+    expect(view.actingSeat).not.toBeNull();
+    expect(view.actionDeadline).not.toBeNull();
+
+    const remaining = (view.actionDeadline as number) - Date.now();
+    expect(remaining).toBeGreaterThan(0);
+    expect(remaining).toBeLessThanOrEqual(view.actionClockMs);
+  });
+
+  test('every viewer sees the same deadline, including a spectator', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    const bob = h.seat('Bob', 1);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+
+    const fromAnn = h.table.viewFor(ann.id).actionDeadline;
+    const fromBob = h.table.viewFor(bob.id).actionDeadline;
+    const fromSpectator = h.table.viewFor(null).actionDeadline;
+
+    expect(fromAnn).not.toBeNull();
+    expect(fromBob).toBe(fromAnn);
+    expect(fromSpectator).toBe(fromAnn);
+  });
+
+  test('the deadline clears when the hand ends', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+    expect(h.table.viewFor(ann.id).actionDeadline).not.toBeNull();
+
+    h.foldToTheEnd();
+
+    expect(h.table.handInProgress()).toBe(false);
+    expect(h.table.viewFor(ann.id).actingSeat).toBeNull();
+    expect(h.table.viewFor(ann.id).actionDeadline).toBeNull();
+  });
+
+  test('the deadline moves forward when the action moves on', () => {
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.seat('Cat', 2);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+
+    const first = h.table.viewFor(ann.id).actionDeadline as number;
+    vi.advanceTimersByTime(1_000);
+    // Button 0, SB 1, BB 2 — Ann acts first three-handed.
+    h.act('Ann', { kind: 'call' });
+
+    const second = h.table.viewFor(ann.id).actionDeadline as number;
+    expect(second).toBeGreaterThan(first);
+  });
+});

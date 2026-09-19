@@ -549,3 +549,224 @@ input {
   .card--lg { width: 40px; height: 56px; }
   .topbar { gap: 6px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Phase 1 — action clock, big-blind display, settings (wireframe 1p).
+   Semantic tokens only (hard rule 7). Nothing below invents a colour.
+   --------------------------------------------------------------------------- */
+
+/* The BB companion to a chip count — secondary to the number it follows. */
+.bb {
+  color: var(--text-on-felt-secondary);
+  opacity: 0.72;
+  font-size: 0.85em;
+  font-weight: 500;
+}
+.topbar__stack .bb { color: var(--text-secondary); opacity: 1; }
+
+/* Action clock ------------------------------------------------------------ */
+
+.seat__clock {
+  margin-left: 6px;
+  font-family: var(--seat-stack-font);
+  font-size: var(--chip-denom-size);
+  font-weight: 700;
+  color: var(--timer-fill);
+  font-variant-numeric: tabular-nums;
+}
+.seat__timer {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  height: var(--timer-height);
+  border-bottom-left-radius: var(--seat-radius);
+  border-bottom-right-radius: var(--seat-radius);
+  background: var(--timer-track);
+  overflow: hidden;
+}
+.seat__timer::after {
+  content: '';
+  display: block;
+  height: 100%;
+  /* Set inline per render from the server's deadline. */
+  width: calc(var(--timer-progress, 1) * 100%);
+  background: var(--timer-fill);
+  transition: width var(--motion-ui) linear;
+}
+.seat__timer--urgent::after { background: var(--timer-urgent); }
+.seat__timer--critical::after { background: var(--timer-critical); }
+.seat__timer--critical ~ .seat__clock,
+.seat--acting .seat__timer--critical + .seat__clock { color: var(--timer-critical); }
+
+/* Settings ---------------------------------------------------------------- */
+
+.modal--settings {
+  width: min(720px, 94vw);
+  max-height: min(88dvh, 720px);
+  padding: 18px;
+  gap: 14px;
+}
+.settings__head { display: flex; align-items: center; gap: 10px; }
+.settings__head .modal__title { flex: none; }
+.settings__note {
+  flex: 1;
+  color: var(--text-muted);
+  font-size: var(--chip-denom-size);
+  letter-spacing: 0.06em;
+}
+.settings__body { display: flex; gap: 16px; min-height: 0; flex: 1; }
+
+.settings__nav { display: flex; flex-direction: column; gap: 4px; flex: none; width: 152px; }
+.settings__navItem {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+  padding: 9px 11px;
+  border-radius: var(--action-radius);
+  border: 1px solid transparent;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  min-height: var(--action-min-touch);
+}
+.settings__navItem:hover { background: var(--surface-app-bg); color: var(--text-primary); }
+.settings__navItem--on {
+  background: var(--surface-app-bg);
+  border-color: var(--seat-active-ring);
+  color: var(--text-primary);
+}
+.settings__navLabel { font-weight: 600; font-size: var(--seat-stack-size); }
+.settings__navHint { font-size: var(--chip-denom-size); color: var(--text-muted); }
+
+.settings__pane { flex: 1; min-width: 0; overflow-y: auto; display: flex; flex-direction: column; gap: 10px; }
+.settings__lede { margin: 0; color: var(--text-secondary); font-size: var(--seat-name-size); max-width: 52ch; }
+
+.swatches { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 8px; }
+.swatch {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px;
+  border-radius: var(--action-radius);
+  border: 1px solid var(--surface-panel-border);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  min-height: var(--action-min-touch);
+}
+.swatch:hover { border-color: var(--text-muted); }
+.swatch--on { border-color: var(--seat-active-ring); box-shadow: 0 0 0 2px var(--seat-active-glow); }
+.swatch__vis {
+  flex: none;
+  width: 56px;
+  height: 38px;
+  border-radius: var(--radius-sm, 4px);
+  background: var(--rail-base);
+  display: grid;
+  place-items: center;
+  overflow: hidden;
+}
+.swatch__felt {
+  width: 78%;
+  height: 66%;
+  border-radius: 50% / 44%;
+  background: var(--felt-base);
+}
+.swatch__cards { flex: none; display: flex; gap: 2px; }
+.swatch__text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.swatch__name { font-weight: 600; font-size: var(--seat-stack-size); }
+.swatch__desc { font-size: var(--chip-denom-size); color: var(--text-muted); }
+
+.optRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  padding: 10px 11px;
+  border-radius: var(--action-radius);
+  border: 1px solid var(--surface-panel-border);
+  background: transparent;
+  color: var(--text-primary);
+  cursor: pointer;
+  text-align: left;
+  min-height: var(--action-min-touch);
+}
+.optRow:hover { border-color: var(--text-muted); }
+.optRow__text { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.optRow__label { font-weight: 600; font-size: var(--seat-stack-size); }
+.optRow__hint { font-size: var(--chip-denom-size); color: var(--text-muted); }
+
+.switch {
+  flex: none;
+  width: 40px;
+  height: 22px;
+  border-radius: var(--seat-avatar-radius);
+  background: var(--timer-track);
+  border: 1px solid var(--surface-panel-border);
+  display: flex;
+  align-items: center;
+  padding: 2px;
+  transition: background var(--motion-ui);
+}
+.switch--on { background: var(--seat-active-ring); border-color: transparent; }
+.switch__knob {
+  width: 16px;
+  height: 16px;
+  border-radius: var(--seat-avatar-radius);
+  background: var(--text-primary);
+  transition: transform var(--motion-ui) var(--motion-ease-default);
+}
+.switch--on .switch__knob { transform: translateX(18px); background: var(--text-inverse); }
+
+/* The pinned preview — 1p's whole point is seeing the choice, not reading it.
+   Same construction as the real felt (ellipse, vignette, rail border) so what
+   you pick here is what you get out there. */
+.miniTable {
+  flex: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.miniTable__caption {
+  position: absolute;
+  top: 8px;
+  left: 12px;
+  z-index: 1;
+  font-size: var(--chip-denom-size);
+  letter-spacing: 0.14em;
+  color: var(--text-on-felt-secondary);
+  opacity: 0.7;
+}
+.miniTable__felt {
+  width: 100%;
+  height: 128px;
+  border-radius: 50% / 46%;
+  background:
+    radial-gradient(ellipse at center, transparent 52%, var(--felt-vignette) 100%),
+    var(--felt-base);
+  border: 5px solid var(--rail-base);
+  box-shadow: inset 0 0 0 2px var(--rail-highlight), inset 0 0 40px var(--felt-vignette);
+  display: grid;
+  place-items: center;
+}
+.miniTable__centre {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  transform: translateY(-6px);
+}
+/* In flow, riding the felt's bottom edge the way a real seat plate does. */
+.miniTable__seat { margin-top: -16px; min-width: 150px; }
+
+@media (max-width: 620px) {
+  .settings__body { flex-direction: column; }
+  .settings__nav { width: auto; flex-direction: row; overflow-x: auto; }
+  .settings__navItem { flex: none; }
+  .settings__navHint { display: none; }
+  .miniTable__felt { height: 118px; }
+}
