@@ -6,6 +6,9 @@ import { CardBack, CardFace } from './Cards';
 import { AVATARS } from './Join';
 import { ActionBar } from './ActionBar';
 import { Rail } from './Rail';
+import { Settings } from './Settings';
+import { formatClock, useCountdown } from '../clock';
+import { bbLabel } from '../prefs';
 
 // Seat anchor points on the felt ellipse, clockwise from bottom-centre —
 // straight from the wireframe kit (frame 1j). The view rotates so YOUR seat is
@@ -28,6 +31,9 @@ function SeatPlate({
   isActing,
   isButton,
   award,
+  bigBlind,
+  showBB,
+  clock,
   onSit,
 }: {
   seat: SeatView;
@@ -35,6 +41,10 @@ function SeatPlate({
   isActing: boolean;
   isButton: boolean;
   award: number;
+  bigBlind: number;
+  showBB: boolean;
+  /** Set only on the seat that is actually on the clock. */
+  clock: { msLeft: number; totalMs: number } | null;
   onSit: (() => void) | null;
 }) {
   if (seat.playerId === null) {
@@ -60,6 +70,9 @@ function SeatPlate({
     .join(' ');
 
   const cards = seat.holeCards ?? seat.shownCards;
+  const stackBB = bbLabel(seat.stack, bigBlind, showBB);
+  const fraction = clock ? clock.msLeft / clock.totalMs : 1;
+  const urgency = fraction < 0.2 ? ' seat__timer--critical' : fraction < 0.5 ? ' seat__timer--urgent' : '';
 
   return (
     <div className={classes}>
@@ -68,9 +81,21 @@ function SeatPlate({
         {isButton && <span className="seat__button-disc" title="dealer button">D</span>}
       </span>
       <span className="seat__info">
-        <span className="seat__name">{seat.name}</span>
+        <span className="seat__name">
+          {seat.name}
+          {clock && <span className="seat__clock">{formatClock(clock.msLeft)}</span>}
+        </span>
         <span className="seat__stack">
-          {folded ? 'FOLDED' : seat.isAllIn ? 'ALL IN' : seat.stack.toLocaleString()}
+          {folded ? (
+            'FOLDED'
+          ) : seat.isAllIn ? (
+            'ALL IN'
+          ) : (
+            <>
+              {seat.stack.toLocaleString()}
+              {stackBB && <span className="bb"> · {stackBB}</span>}
+            </>
+          )}
           {!seat.connected && ' · away'}
         </span>
       </span>
@@ -85,6 +110,13 @@ function SeatPlate({
         <span className="seat__bet">{seat.committedThisStreet.toLocaleString()}</span>
       )}
       {award > 0 && <span className="seat__award">+{award.toLocaleString()}</span>}
+      {clock && (
+        <span
+          className={`seat__timer${urgency}`}
+          style={{ ['--timer-progress' as string]: String(fraction) }}
+          aria-hidden
+        />
+      )}
     </div>
   );
 }
@@ -101,6 +133,9 @@ export function Table() {
   // return below — called after it, the hook count changes from 7 to 8 the
   // moment the first state frame arrives and React throws.
   const showdownThisHand = useStore((s) => s.showdownThisHand);
+  const prefs = useStore((s) => s.prefs);
+  const [settingsOpen, setSettingsOpen] = useState(false);
+  const msLeft = useCountdown(view?.actionDeadline ?? null);
 
   if (!view) return <div className="loading">Taking your seat…</div>;
 
@@ -121,6 +156,9 @@ export function Table() {
   for (const a of awards) awardBySeat.set(a.seat, (awardBySeat.get(a.seat) ?? 0) + a.amount);
 
   const seatedWithChips = view.seats.filter((s) => s.playerId !== null && s.stack > 0).length;
+  const bigBlind = view.blinds.bigBlind;
+  const heroStackBB = heroSeat ? bbLabel(heroSeat.stack, bigBlind, prefs.showBB) : null;
+  const potBB = bbLabel(view.potTotal, bigBlind, prefs.showBB);
 
   return (
     <div className="tableScreen">
@@ -137,8 +175,16 @@ export function Table() {
         {seated && heroSeat && (
           <span className="topbar__stack">
             STACK {heroSeat.stack.toLocaleString()}
+            {heroStackBB && <span className="bb"> · {heroStackBB}</span>}
           </span>
         )}
+        <button
+          className="btn btn--small btn--ghost"
+          onClick={() => setSettingsOpen(true)}
+          aria-label="settings"
+        >
+          ⚙
+        </button>
       </header>
 
       <div className="tableArea">
@@ -166,7 +212,10 @@ export function Table() {
                   {view.potTotal > 0 && (
                     <div className="pot">
                       <span className="pot__label">POT</span>
-                      <span className="pot__amount">{view.potTotal.toLocaleString()}</span>
+                      <span className="pot__amount">
+                        {view.potTotal.toLocaleString()}
+                        {potBB && <span className="bb"> · {potBB}</span>}
+                      </span>
                     </div>
                   )}
                   <div className="board">
@@ -208,6 +257,13 @@ export function Table() {
                     isActing={view.actingSeat === seat.index}
                     isButton={view.handNumber > 0 && view.button === seat.index}
                     award={view.street === 'complete' ? (awardBySeat.get(seat.index) ?? 0) : 0}
+                    bigBlind={bigBlind}
+                    showBB={prefs.showBB}
+                    clock={
+                      view.actingSeat === seat.index && msLeft !== null
+                        ? { msLeft, totalMs: view.actionClockMs }
+                        : null
+                    }
                     onSit={
                       !seated
                         ? () => {
@@ -242,6 +298,8 @@ export function Table() {
       )}
 
       <ActionBar />
+
+      {settingsOpen && <Settings onClose={() => setSettingsOpen(false)} />}
 
       {sitSeat !== null && (
         <div className="modalScrim" onClick={() => setSitSeat(null)}>

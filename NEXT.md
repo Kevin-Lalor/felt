@@ -37,11 +37,20 @@ and the verifier cannot drift apart unnoticed. Typecheck, lint and build clean.
    the Max subscription, an `ANTHROPIC_API_KEY` bills the API separately.
 2. Make the repo public (decided 19 Sep). It unlocks branch protection rulesets
    for free — today a red CI run cannot physically block a merge.
-3. Phase 1, in this order: theme picker (**default: Midnight**, decided 19 Sep),
-   then the action clock surfaced in `tableViewSchema`, then the chips/BB toggle.
+3. Phase 2 — SQLite, before anything that accumulates data. Leaderboard, notes and
+   stats all want it, and a restart still forgets every stack at the table.
+
+**Phase 1 is done** (branch `feat/phase-1-theme-timer-bb`): the action clock now travels in
+`tableViewSchema` and draws on the acting seat and in the action bar; stacks and pots take a
+`· 620BB` suffix behind a toggle; and the settings panel exists, built from wireframe 1p —
+two panes plus a pinned mini-table preview. Default theme is Midnight. 128 tests pass.
+
+Settings only offers options that actually do something: theme, deck colour, motion speed and
+the BB toggle. `cosmetics.json` still catalogues fold styles, chip styles and throwables that
+nothing reads — do not build pickers for those until there is an implementation behind them.
 
 **Decisions taken 2026-09-19:**
-- Default theme: **Midnight**.
+- Default theme: **Midnight**. Settings surface: **wireframe 1p**.
 - Hosting: **Cloudflare Tunnel on a named tunnel + a domain (~€10/yr)**, not a
   quick tunnel. Needs heartbeat + reconnect-with-resync before a permanent URL —
   Cloudflare closes idle sockets and restarts servers mid-connection.

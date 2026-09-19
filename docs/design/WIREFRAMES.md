@@ -44,9 +44,9 @@ app three times. Pick one per group first — that is a decision for Kevin, not 
 | 1m | Table state | Waiting on players: buy-ins, ready state, invite link, host's early-start button | `draft` |
 | 1n | Hand history | Street-by-street betting action with a replay scrubber | `draft` |
 | 1o | Player notes | Notes on a player + your session stats — flops seen, position, VPIP | `draft` |
-| 1p | Settings | Two-pane preferences with a pinned mini-table that reflects every choice | `option` |
-| 1q | Settings | Edit it where you'll see it — click any element on a live table, its palette pops | `option` |
-| 1r | Settings | One long gallery — every option as a swatch grid, sticky save bar | `option` |
+| 1p | Settings | Two-pane preferences with a pinned mini-table that reflects every choice | **`approved`** |
+| 1q | Settings | Edit it where you'll see it — click any element on a live table, its palette pops | `superseded` |
+| 1r | Settings | One long gallery — every option as a swatch grid, sticky save bar | `superseded` |
 | 1s | End of game | Victory — podium, full results, "run it back" as the loudest button | `draft` |
 | 1t | End of game | Busted — rebuy on a countdown so the seat doesn't go cold, spectate as the soft exit | `draft` |
 | 1u | End of game | Session summary + spectator mode — you're out, the game isn't. Staking parked in a corner | `draft` |
@@ -62,10 +62,14 @@ in that group.**
 to choose between.
 `superseded` — kept for history; note what replaced it.
 
-Only 1j is approved, and only because the table in `apps/web` was built from it —
-`Table.tsx` and `styles.css` both cite it by name. Comparing the two shows what was dropped on
-the way: the action timer, the `STACK 1,240 · 620BB` dual chip format, the emote/throw control,
-and the Notes and Stats rail tabs.
+Two frames are approved. **1j** because the table in `apps/web` was built from it —
+`Table.tsx` and `styles.css` both cite it by name. **1p** was chosen on 19 Sep 2026 and built as
+`apps/web/src/components/Settings.tsx`; 1q and 1r are marked superseded by it.
+
+Comparing 1j against the built table showed what had been dropped on the way: the action timer,
+the `STACK 1,240 · 620BB` dual chip format, the emote/throw control, and the Notes and Stats
+rail tabs. The first two shipped in Phase 1. The emote/throw control and the two rail tabs are
+still missing.
 
 ## Decisions still open
 
@@ -75,7 +79,7 @@ One pick needed per group before any of that group gets built:
 - [ ] **Join flow** — 1d, 1e or 1f
 - [ ] **Host model** — 1g, 1h or 1i. This is a *rules* decision as much as a layout one; it
       belongs in `HOUSE-RULES.md` once made
-- [ ] **Settings** — 1p, 1q or 1r
+- [x] **Settings** — **1p**, chosen 19 Sep 2026
 - [ ] **Leaderboard placement** — 2a, 2b or 2c
 - [ ] **Table** — 1j is built, but 1k and 1l are still live alternatives if the layout is ever
       revisited

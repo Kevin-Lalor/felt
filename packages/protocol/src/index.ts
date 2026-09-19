@@ -132,6 +132,12 @@ export const tableViewSchema = z.object({
   seats: z.array(seatViewSchema),
   /** The recipient's seat index at this table, or null when spectating. */
   yourSeat: z.number().int().nullable(),
+  /** Wall-clock ms (Date.now()) when the acting player's clock expires, or null
+   *  when nobody is on the clock. The server has always run this clock; it just
+   *  had no field to travel in, so no client could draw a countdown. */
+  actionDeadline: z.number().int().nullable(),
+  /** Full length of the action clock, so the client can draw a fraction. */
+  actionClockMs: z.number().int(),
   /** What the recipient may legally do right now. Never compute this client-side. */
   legal: legalActionsViewSchema.nullable(),
   /** Fairness. `commit` governs `handNumber`; `nextCommit` is ALREADY published
