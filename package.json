@@ -18,6 +18,7 @@
     "lint": "eslint . --max-warnings 0",
     "tokens": "tsx packages/tokens/build.ts",
     "verify-hand": "tsx tools/verify-hand.ts",
+    "bot": "tsx tools/bot.ts",
     "db:migrate": "pnpm --filter @poker/server db:migrate",
     "db:snapshot": "pnpm --filter @poker/server db:snapshot",
     "prepare": "husky"
