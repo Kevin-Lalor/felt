@@ -770,3 +770,154 @@ input {
   .settings__navHint { display: none; }
   .miniTable__felt { height: 118px; }
 }
+
+/* ---------------------------------------------------------------------------
+   Cosmetics — card backs (local preference) and chips (player skin).
+   Semantic tokens only. See docs/adr/0001 for why card backs moved layer.
+   --------------------------------------------------------------------------- */
+
+/* Card-back colour. Overrides whatever the table theme set, because these
+   rules come after tokens.css and match at the same specificity. */
+[data-card-back-colour='mahogany'] { --card-back-bg: var(--card-back-mahogany); }
+[data-card-back-colour='walnut']   { --card-back-bg: var(--card-back-walnut); }
+[data-card-back-colour='charcoal'] { --card-back-bg: var(--card-back-charcoal); }
+[data-card-back-colour='chrome']   { --card-back-bg: var(--card-back-chrome); }
+[data-card-back-colour='brass']    { --card-back-bg: var(--card-back-brass); }
+[data-card-back-colour='navy']     { --card-back-bg: var(--card-back-navy); }
+[data-card-back-colour='burgundy'] { --card-back-bg: var(--card-back-burgundy); }
+[data-card-back-colour='emerald']  { --card-back-bg: var(--card-back-emerald); }
+
+/* Card-back pattern. */
+[data-card-back='weave'] .card--back {
+  background:
+    repeating-linear-gradient(45deg, var(--rail-highlight) 0 3px, transparent 3px 7px),
+    var(--card-back-bg);
+}
+[data-card-back='lattice'] .card--back {
+  background:
+    repeating-linear-gradient(45deg, var(--rail-highlight) 0 2px, transparent 2px 6px),
+    repeating-linear-gradient(-45deg, var(--rail-highlight) 0 2px, transparent 2px 6px),
+    var(--card-back-bg);
+}
+[data-card-back='dots'] .card--back {
+  background:
+    radial-gradient(var(--rail-highlight) 1.4px, transparent 1.5px) 0 0 / 7px 7px,
+    var(--card-back-bg);
+}
+[data-card-back='chevron'] .card--back {
+  background:
+    repeating-linear-gradient(135deg, var(--rail-highlight) 0 2px, transparent 2px 6px) 0 0 / 100% 50%,
+    repeating-linear-gradient(45deg, var(--rail-highlight) 0 2px, transparent 2px 6px) 0 100% / 100% 50%,
+    var(--card-back-bg);
+}
+[data-card-back='plain'] .card--back { background: var(--card-back-bg); }
+
+/* Chips ------------------------------------------------------------------- */
+
+.chipStack { display: inline-flex; align-items: center; flex: none; }
+.chipStack .chip { margin-right: var(--chip-stack-overlap-sm, -9px); }
+.chipStack .chip:last-child { margin-right: 0; }
+
+.chip {
+  width: var(--chip-size);
+  height: var(--chip-size);
+  flex: none;
+  position: relative;
+  border-radius: var(--seat-avatar-radius);
+  background: var(--chip-colour, var(--chip-red));
+  /* MANDATORY. Every chip colour fails 3:1 against every felt on its own
+     (docs/DESIGN-SYSTEM.md measured them). The outline is what makes a chip
+     readable on the table. Do not remove it from any style below. */
+  box-shadow: 0 0 0 var(--chip-outline-width) var(--chip-outline), var(--chip-shadow);
+}
+.chipStack--sm .chip { width: 15px; height: 15px; margin-right: -6px; }
+
+.chip[data-chip-style='casino'] {
+  background:
+    repeating-conic-gradient(var(--chip-outline) 0 10deg, transparent 10deg 45deg),
+    var(--chip-colour);
+}
+.chip[data-chip-style='casino']::after {
+  content: '';
+  position: absolute;
+  inset: 24%;
+  border-radius: var(--seat-avatar-radius);
+  background: var(--chip-colour);
+  box-shadow: 0 0 0 1px var(--chip-edge);
+}
+.chip[data-chip-style='ceramic']::after {
+  content: '';
+  position: absolute;
+  inset: 15%;
+  border-radius: var(--seat-avatar-radius);
+  box-shadow: inset 0 0 0 1px var(--chip-edge);
+}
+.chip[data-chip-style='vintage'] {
+  filter: saturate(0.65) brightness(0.92);
+  box-shadow:
+    0 0 0 var(--chip-outline-width) var(--chip-outline),
+    inset 0 -2px 4px var(--felt-vignette),
+    var(--chip-shadow);
+}
+.chip[data-chip-style='neon'] {
+  background: var(--surface-app-bg);
+  box-shadow:
+    0 0 0 var(--chip-outline-width) var(--chip-outline),
+    0 0 9px var(--chip-colour),
+    inset 0 0 0 2px var(--chip-colour),
+    var(--chip-shadow);
+}
+.chip[data-chip-style='minimal'] {
+  box-shadow: 0 0 0 var(--chip-outline-width) var(--chip-outline);
+}
+
+/* Bets now carry chips as well as a number. */
+.seat__bet { display: flex; align-items: center; gap: 5px; }
+.seat__bet-amount { font-family: var(--seat-stack-font); font-variant-numeric: tabular-nums; }
+
+/* Your own plate is a button when it can swap chips for big blinds. */
+.seat--clickable {
+  font: inherit;
+  color: inherit;
+  text-align: left;
+  cursor: pointer;
+  -webkit-appearance: none;
+  appearance: none;
+}
+.seat--clickable:hover { border-color: var(--seat-active-ring); }
+.seat--clickable:focus-visible { outline: 2px solid var(--seat-active-ring); outline-offset: 2px; }
+
+/* Colour pickers ---------------------------------------------------------- */
+
+.dotRow { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+.dot {
+  width: 28px;
+  height: 28px;
+  flex: none;
+  border-radius: var(--seat-avatar-radius);
+  background: var(--dot-colour, var(--surface-panel-bg));
+  border: 1px solid var(--surface-panel-border);
+  cursor: pointer;
+  padding: 0;
+}
+.dot--theme {
+  background:
+    linear-gradient(135deg, var(--felt-base) 50%, var(--rail-base) 50%);
+}
+.dot--on { box-shadow: 0 0 0 2px var(--seat-active-ring); border-color: transparent; }
+.dot:focus-visible { outline: 2px solid var(--seat-active-ring); outline-offset: 2px; }
+
+.chipPick {
+  display: grid;
+  place-items: center;
+  padding: 4px;
+  border-radius: var(--seat-avatar-radius);
+  border: 1px solid transparent;
+  background: transparent;
+  cursor: pointer;
+}
+.chipPick--on { border-color: var(--seat-active-ring); background: var(--surface-app-bg); }
+.chipPick:focus-visible { outline: 2px solid var(--seat-active-ring); outline-offset: 2px; }
+
+.miniTable__bet { display: flex; align-items: center; gap: 5px; color: var(--text-on-felt); }
+.miniTable__bet .seat__bet-amount { font-size: var(--chip-denom-size); }

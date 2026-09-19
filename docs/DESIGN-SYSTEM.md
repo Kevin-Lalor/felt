@@ -16,12 +16,17 @@ decision themeable for free, and it's hard rule 7 in `CLAUDE.md`.
 
 | Layer | Set by | Visible to | Contains |
 |---|---|---|---|
-| **Table theme** | Host, per table | Everyone, identically | Felt colour/texture, rail, background, table shape, card faces, card backs, dealer button |
+| **Table theme** | Host, per table | Everyone, identically | Felt colour/texture, rail, background, table shape, card faces, dealer button |
 | **Player skin** | Each player | **Everyone at the table** | Avatar + frame, chip style, fold style, chip shuffle, emote pack, throwable pack, nameplate, win celebration |
-| **Local preference** | Each player | Only them | Reduced motion, fast mode, four-colour deck, large text, sound, layout density, auto-muck |
+| **Local preference** | Each player | Only them | Reduced motion, fast mode, four-colour deck, **card back pattern and colour**, large text, sound, layout density, auto-muck |
 
 The split is deliberate: a player skin is visible to others because that's what makes cosmetics
 worth choosing. A local preference is invisible because it must never become an advantage.
+
+**Card backs moved** from Table theme to Local preference on 2026-09-19 — a back is only ever
+drawn on a face-down card, so it is the back of *other people's* cards as seen by you, and it
+carries no information. See `docs/adr/0001-card-backs-are-a-local-preference.md` for the full
+reasoning and the condition that would reverse it.
 
 Ships with four themes: Classic Green, Midnight, Vegas, Slate. Hosts can also pick a **custom
 felt colour** — gated by the contrast check below.

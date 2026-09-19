@@ -43,6 +43,36 @@ export const clientSeedEntrySchema = z.object({
 });
 export type ClientSeedEntry = z.infer<typeof clientSeedEntrySchema>;
 
+/** PLAYER SKIN — cosmetic, chosen by each player, visible to EVERYONE at the
+ *  table (docs/DESIGN-SYSTEM.md). That visibility is the point: a cosmetic
+ *  nobody else sees is not worth choosing. It therefore travels in the
+ *  protocol, unlike a local preference, which must stay on the client.
+ *
+ *  Nothing here may affect gameplay, information or timing. The ids are an
+ *  enum so an unknown one is rejected at the Zod boundary rather than reaching
+ *  the table — packages/tokens/cosmetics.json is the catalogue these mirror. */
+export const chipStyleSchema = z.enum(['casino', 'ceramic', 'vintage', 'neon', 'minimal']);
+export type ChipStyle = z.infer<typeof chipStyleSchema>;
+
+export const chipColourSchema = z.enum([
+  'red',
+  'blue',
+  'green',
+  'black',
+  'purple',
+  'yellow',
+  'orange',
+  'pink',
+  'white',
+]);
+export type ChipColour = z.infer<typeof chipColourSchema>;
+
+export const playerSkinSchema = z.object({
+  chipStyle: chipStyleSchema,
+  chipColour: chipColourSchema,
+});
+export type PlayerSkin = z.infer<typeof playerSkinSchema>;
+
 // ---------------------------------------------------------------------------
 // Client → Server
 // ---------------------------------------------------------------------------
@@ -68,6 +98,8 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('chat'), text: z.string().trim().min(1).max(300) }),
   z.object({ type: z.literal('emote'), emote: z.string().min(1).max(16) }),
   z.object({ type: z.literal('setClientSeed'), seed: z.string().min(1).max(64) }),
+  /** Change your own cosmetics. Everyone at the table sees the result. */
+  z.object({ type: z.literal('setSkin'), skin: playerSkinSchema }),
   /** Post-hand 6-second window: show both, one, or muck (wireframe: show one card). */
   z.object({ type: z.literal('show'), cards: z.enum(['both', 'first', 'second']) }),
 ]);
@@ -94,6 +126,8 @@ export const seatViewSchema = z.object({
   holeCards: z.array(cardSchema).optional(),
   /** Cards this seat chose to show (or showed at showdown). Public. */
   shownCards: z.array(cardSchema).optional(),
+  /** This player's chosen cosmetics. Public by design — see playerSkinSchema. */
+  skin: playerSkinSchema,
   connected: z.boolean(),
 });
 export type SeatView = z.infer<typeof seatViewSchema>;

@@ -7,9 +7,11 @@ import { randomBytes, timingSafeEqual } from 'node:crypto';
 import type { Chips, Event, HandState, Seat } from '@poker/engine';
 import { DEFAULT_RULES, applyAction, chips, encodeCard, startHand } from '@poker/engine';
 import type {
+  ChipColour,
   ClientMessage,
   ClientSeedEntry,
   HandEvent,
+  PlayerSkin,
   ServerMessage,
   TableView,
 } from '@poker/protocol';
@@ -19,6 +21,19 @@ import { buildView } from './redact.js';
 import type { HandRecord } from './history.js';
 
 const MAX_SEATS = 9;
+/** Chip colours handed out in order as players join, so a fresh table has nine
+ *  distinguishable stacks instead of nine red ones. Players can change theirs. */
+const CHIP_COLOUR_ROTATION: readonly ChipColour[] = [
+  'red',
+  'blue',
+  'green',
+  'yellow',
+  'purple',
+  'orange',
+  'pink',
+  'white',
+  'black',
+];
 const ACTION_CLOCK_MS = 45_000; // HOUSE-RULES: action clock (to be tuned); auto check/fold on expiry
 const NEXT_HAND_DELAY_MS = 6_500;
 const SHOW_WINDOW_MS = 8_000;
@@ -32,6 +47,8 @@ export type Player = {
   /** The commitment that was public when this seed was chosen. A seed only
    *  constrains the server if it was picked AFTER the commitment it goes into. */
   seedSetAgainstCommit: string;
+  /** Cosmetics this player chose. Public to the whole table by design. */
+  skin: PlayerSkin;
   isHost: boolean;
   connected: boolean;
   send: (msg: ServerMessage) => void;
@@ -123,6 +140,7 @@ export class Table {
       avatar: input.avatar,
       clientSeed: input.clientSeed ?? randomBytes(8).toString('hex'),
       seedSetAgainstCommit: this.nextCommit,
+      skin: { chipStyle: 'casino', chipColour: this.nextFreeChipColour() },
       isHost: input.isHost,
       connected: true,
       send: input.send,
@@ -130,6 +148,12 @@ export class Table {
     this.players.set(player.playerId, player);
     this.broadcast();
     return player;
+  }
+
+  /** First colour nobody at the table is already using, else the first. */
+  private nextFreeChipColour(): ChipColour {
+    const taken = new Set([...this.players.values()].map((p) => p.skin.chipColour));
+    return CHIP_COLOUR_ROTATION.find((c) => !taken.has(c)) ?? (CHIP_COLOUR_ROTATION[0] as ChipColour);
   }
 
   private uniqueName(name: string, exceptPlayerId?: string): string {
@@ -174,6 +198,12 @@ export class Table {
         player.clientSeed = msg.seed.slice(0, 64);
         // Pin the seed to the commitment that was public when it was chosen.
         player.seedSetAgainstCommit = this.nextCommit;
+        this.broadcast();
+        return null;
+      case 'setSkin':
+        // Cosmetic only. Zod has already rejected any id outside the catalogue,
+        // and nothing here touches gameplay, information or timing.
+        player.skin = msg.skin;
         this.broadcast();
         return null;
       case 'show':
@@ -585,6 +615,7 @@ export class Table {
         playerId: player.playerId,
         name: player.name,
         avatar: player.avatar,
+        skin: player.skin,
         connected: player.connected,
       };
     });
