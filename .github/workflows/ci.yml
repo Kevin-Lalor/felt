@@ -30,18 +30,32 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: 22, cache: pnpm }
       - run: pnpm install --frozen-lockfile
+      # Both guards below assert their search paths exist FIRST. grep on a
+      # missing directory exits non-zero, which made the `if` false and the step
+      # pass green — the skipped-test guard pointed at apps/server/src/__tests__,
+      # which has never existed, so it never inspected a single server test.
       - name: No Math.random in the deck path
         run: |
-          if grep -rn "Math\.random" packages/engine/src apps/server/src; then
+          set -euo pipefail
+          for dir in packages/engine/src apps/server/src tools; do
+            test -d "$dir" || { echo "::error::$dir is missing — this guard would pass silently"; exit 1; }
+          done
+          if grep -rn "Math\.random" packages/engine/src apps/server/src tools; then
             echo "::error::Math.random() found — hard rule 3"; exit 1
           fi
       - name: No skipped fairness or leak tests
         run: |
-          if grep -rn "\.skip(\|\.todo(\|xit(" packages/engine/__tests__ apps/server/src/__tests__; then
+          set -euo pipefail
+          for dir in packages/engine/__tests__ apps/server/__tests__; do
+            test -d "$dir" || { echo "::error::$dir is missing — this guard would pass silently"; exit 1; }
+          done
+          if grep -rn "\.skip(\|\.todo(\|xit(" packages/engine/__tests__ apps/server/__tests__; then
             echo "::error::A fairness/leak test is skipped — hard rule: never weaken these"; exit 1
           fi
       - run: pnpm test:property
       - run: pnpm test:leak
+      # Commit ordering, seat-reuse leaks, and server/verifier agreement.
+      - run: pnpm test:integrity
 
   coverage:
     runs-on: ubuntu-latest

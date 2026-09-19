@@ -12,6 +12,7 @@
     "test:engine": "pnpm --filter @poker/engine test",
     "test:property": "pnpm --filter @poker/engine test:property",
     "test:leak": "pnpm --filter @poker/server test:leak",
+    "test:integrity": "pnpm --filter @poker/server test:integrity",
     "test:e2e": "playwright test",
     "typecheck": "turbo run typecheck",
     "lint": "eslint . --max-warnings 0",

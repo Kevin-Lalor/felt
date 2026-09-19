@@ -1,6 +1,6 @@
 import { StrictMode } from 'react';
 import { createRoot } from 'react-dom/client';
-import '../../../packages/tokens/dist/tokens.css';
+import '@poker/tokens/dist/tokens.css';
 import './styles.css';
 import { App } from './App';
 
