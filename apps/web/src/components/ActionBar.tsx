@@ -3,6 +3,71 @@ import { send } from '../socket';
 import { useStore } from '../store';
 import { formatClock, useCountdown } from '../clock';
 
+/** Sit out, come back, and the choice you get when the big blind went past
+ *  while you were away (HOUSE-RULES #6-#11). It lives in the action bar rather
+ *  than a menu because it is the one control you reach for while a hand you are
+ *  not in is running — the moment you stand up to get a drink. */
+function AwayControls() {
+  const view = useStore((s) => s.view);
+  const you = view?.you ?? null;
+  if (!view || !you) return null;
+  const bigBlind = view.blinds.bigBlind;
+
+  if (you.away === 'sittingOut') {
+    return you.missedBlind ? (
+      <span className="away">
+        <span className="away__label">
+          The big blind went past you. Pay it now, or wait for it to come round.
+        </span>
+        <button className="btn btn--accent btn--small" onClick={() => send({ type: 'sitIn', post: true })}>
+          Post {bigBlind.toLocaleString()} and play next hand
+        </button>
+        <button className="btn btn--small" onClick={() => send({ type: 'sitIn', post: false })}>
+          Wait for the big blind
+        </button>
+      </span>
+    ) : (
+      <span className="away">
+        <span className="away__label">You are sitting out.</span>
+        <button className="btn btn--accent btn--small" onClick={() => send({ type: 'sitIn', post: false })}>
+          I&apos;m back
+        </button>
+      </span>
+    );
+  }
+
+  if (you.away === 'waitingForBigBlind') {
+    return (
+      <span className="away">
+        <span className="away__label">Waiting for the big blind to reach you.</span>
+        <button className="btn btn--small" onClick={() => send({ type: 'sitIn', post: true })}>
+          Post {bigBlind.toLocaleString()} instead
+        </button>
+        <button className="btn btn--small" onClick={() => send({ type: 'sitOut' })}>
+          Sit out
+        </button>
+      </span>
+    );
+  }
+
+  if (you.sitOutAfterHand) {
+    return (
+      <span className="away">
+        <span className="away__label">Sitting out after this hand.</span>
+        <button className="btn btn--small" onClick={() => send({ type: 'sitIn', post: false })}>
+          Cancel
+        </button>
+      </span>
+    );
+  }
+
+  return (
+    <button className="btn btn--small away__sitout" onClick={() => send({ type: 'sitOut' })}>
+      Sit out
+    </button>
+  );
+}
+
 export function ActionBar() {
   const view = useStore((s) => s.view);
   const legal = view?.legal ?? null;
@@ -49,10 +114,13 @@ export function ActionBar() {
         <span className="actionbar__hint">
           {!seated
             ? 'Tap an open seat to buy in.'
-            : inHand
-              ? 'Waiting for the action to reach you…'
-              : ' '}
+            : view?.you && view.you.away !== 'no'
+              ? ' '
+              : inHand
+                ? 'Waiting for the action to reach you…'
+                : ' '}
         </span>
+        <AwayControls />
       </footer>
     );
   }
@@ -80,6 +148,7 @@ export function ActionBar() {
         )}
         {potOdds && <span className="pill pill--accent">{potOdds}</span>}
         <span className="actionbar__spacer" />
+        <AwayControls />
         <span className="actionbar__keys">F fold · C check/call · R raise · A all-in</span>
       </div>
 

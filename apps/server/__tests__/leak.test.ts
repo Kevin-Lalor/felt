@@ -64,6 +64,7 @@ function snapshotFor(state: HandState, playerCount: number): TableSnapshot {
       avatar: 0,
       skin: { chipStyle: 'casino' as const, chipColour: 'red' as const },
       connected: true,
+      away: 'no' as const,
     })),
     idleStacks: Array(playerCount).fill(0),
     hand: state,
@@ -74,6 +75,7 @@ function snapshotFor(state: HandState, playerCount: number): TableSnapshot {
     actionDeadline: null,
     actionClockMs: 45_000,
     fairness: null,
+    youFor: () => null,
   };
 }
 

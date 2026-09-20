@@ -66,6 +66,11 @@ Two frames are approved. **1j** because the table in `apps/web` was built from i
 `Table.tsx` and `styles.css` both cite it by name. **1p** was chosen on 19 Sep 2026 and built as
 `apps/web/src/components/Settings.tsx`; 1q and 1r are marked superseded by it.
 
+The sitting-out state (20 Sep 2026) was built without a wireframe — the kit has no frame for it,
+and `CLAUDE.md` says to stop and ask when a frame is ambiguous about a state that matters. There
+was no frame to be ambiguous, so the layout below is invented rather than specified; the tokens
+are still the source of truth for everything visual.
+
 Comparing 1j against the built table showed what had been dropped on the way: the action timer,
 the `STACK 1,240 · 620BB` dual chip format, the emote/throw control, and the Notes and Stats
 rail tabs. The first two shipped in Phase 1. The emote/throw control and the two rail tabs are
@@ -95,7 +100,7 @@ describes. Also missing, and all of them are states where layouts break:
 - [ ] Action bar states: facing a bet / can check / all-in only / not your turn
 - [ ] Three-way all-in with two side pots — where do the pot labels go?
 - [ ] Showdown, including show-one-card
-- [ ] A player disconnected or sitting out
+- [x] **A player disconnected or sitting out** — built 20 Sep 2026 with no frame to work from. The seat plate goes dashed and dims to the folded opacity with `SITTING OUT` / `WAITING FOR BB` in place of the stack; the controls live in the action bar (`AwayControls` in `ActionBar.tsx`) because that is where your hand is while a hand you are not in is running. Layout invented, tokens obeyed — **worth a frame if the table is ever revisited**
 - [ ] Tournament *in play* — blind clock, level, next level, players remaining. 1i is the setup
       sheet only
 - [ ] The Fair tab / verification view

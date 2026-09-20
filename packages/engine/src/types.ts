@@ -53,6 +53,16 @@ export type BlindStructure = {
   readonly anteType: 'none' | 'perPlayer' | 'bigBlindAnte';
 };
 
+/** A player returning from sitting out, buying back in mid-rotation rather than
+ *  waiting for the big blind to reach them (HOUSE-RULES #7). The post is DEAD:
+ *  it goes into the pot and does not count as a bet, so the poster still has to
+ *  call any action in front of them. Posting is never how a blind gets paid —
+ *  a seat that is already the small or big blind must not also post. */
+export type Post = {
+  readonly seat: SeatIndex;
+  readonly amount: Chips;
+};
+
 export type HouseRules = {
   /** House rule 2: the odd chip on a split pot goes to the first eligible seat
    *  left of the button. */
@@ -104,12 +114,22 @@ export type HandRank = {
 
 // ---------- events (what the UI animates from) ----------
 export type Event =
-  | { readonly t: 'handStarted'; readonly handNumber: number; readonly button: SeatIndex }
+  | {
+      readonly t: 'handStarted';
+      readonly handNumber: number;
+      readonly button: SeatIndex;
+      /** Stated outright because a blind that a short stack cannot cover posts
+       *  nothing and emits no blindPosted event — so the blind seats are not
+       *  recoverable from the events, and anyone needing them (the table UI, a
+       *  test, a hand replay) would otherwise reimplement the rule and drift. */
+      readonly smallBlindSeat: SeatIndex;
+      readonly bigBlindSeat: SeatIndex;
+    }
   | {
       readonly t: 'blindPosted';
       readonly seat: SeatIndex;
       readonly amount: Chips;
-      readonly blind: 'small' | 'big' | 'ante';
+      readonly blind: 'small' | 'big' | 'ante' | 'post';
     }
   | { readonly t: 'holeCardsDealt'; readonly seat: SeatIndex } // cards themselves come via redaction
   | {

@@ -18,6 +18,9 @@ type Scenario = {
   seed: number;
   ante: 0 | 1 | 2;
   anteType: 'none' | 'perPlayer' | 'bigBlindAnte';
+  /** Seats that return from sitting out by posting rather than waiting for the
+   *  big blind. Filtered down to the ones that may legally post — see playHand. */
+  postSeats: number[];
 };
 
 const arbitraryScenario = fc.record({
@@ -31,6 +34,7 @@ const arbitraryScenario = fc.record({
   anteType: fc.constantFrom('none', 'perPlayer', 'bigBlindAnte') as fc.Arbitrary<
     'none' | 'perPlayer' | 'bigBlindAnte'
   >,
+  postSeats: fc.array(fc.nat(8), { maxLength: 3 }),
 }) satisfies fc.Arbitrary<Scenario>;
 
 function pickAction(legal: LegalActions, rng: () => number): Action {
@@ -61,19 +65,37 @@ function playHand(sc: Scenario): Played {
   const button = sc.button % stacks.length;
   // The button must be on a live seat; every seat here is live.
   const rng = testRng(sc.seed);
-  const start = startHand({
+  const blinds = {
+    smallBlind: chips(1),
+    bigBlind: chips(2),
+    ante: chips(sc.ante),
+    anteType: sc.ante === 0 ? ('none' as const) : sc.anteType,
+  };
+  const deal = {
     seats,
     button,
-    blinds: {
-      smallBlind: chips(1),
-      bigBlind: chips(2),
-      ante: chips(sc.ante),
-      anteType: sc.ante === 0 ? 'none' : sc.anteType,
-    },
+    blinds,
     deck: testShuffle(sc.seed),
     handNumber: 1,
     rules: DEFAULT_RULES,
-  });
+  };
+
+  // Which seats are paying blinds depends on the button and who is dealt in.
+  // Rather than reimplement that here — a second copy that could drift from the
+  // engine — deal once and read the blind seats straight off handStarted, then
+  // deal again with posts on seats that are allowed to post. Reading them from
+  // blindPosted events instead is wrong: a blind a short stack cannot cover
+  // posts nothing and emits no event.
+  const opening = startHand(deal).events.find((e) => e.t === 'handStarted');
+  if (!opening || opening.t !== 'handStarted') throw new Error('no handStarted event');
+  // Only the BIG blind is barred from posting. The small blind may post as
+  // well — a returning player owes a full orbit — so it stays in the space.
+  const blindSeats = new Set([opening.bigBlindSeat]);
+  const posts = [...new Set(sc.postSeats)]
+    .filter((seat) => seat < stacks.length && !blindSeats.has(seat))
+    .map((seat) => ({ seat, amount: chips(2) }));
+
+  const start = startHand({ ...deal, seats: stacks.map((stack, i) => seatRow(i, stack)), posts });
   const initialTotal = stacks.reduce((a, b) => a + b, 0);
   const states: HandState[] = [start.state];
   const events: Event[] = [...start.events];
@@ -219,6 +241,63 @@ describe(`property-based invariants (${RUNS} random hands)`, () => {
         }
       }),
       { numRuns: Math.ceil(RUNS / 5) },
+    );
+  });
+
+  // buildPots adds all dead money to `lastPot` — the highest LIVE pot — on the
+  // stated rule that dead money belongs to the nearest live pot below it. That
+  // is only correct if a dead level can never sit BELOW a live one, which holds
+  // because contributors at a higher level are always a subset of those at a
+  // lower one: if every contributor at level L folded, everyone above L folded
+  // too. That reasoning lived in a comment and nothing checked it. Now it does.
+  test('property: a dead contribution level never sits below a live one, so dead money lands in the nearest live pot', () => {
+    fc.assert(
+      fc.property(arbitraryScenario, (sc) => {
+        const { states } = playHand(sc);
+        for (const state of states) {
+          const seats = state.seats;
+          const levels = [
+            ...new Set(seats.map((s) => s.committedThisHand).filter((v) => v > 0)),
+          ].sort((a, b) => a - b);
+          const live = levels.map((level) =>
+            seats.filter((s) => s.committedThisHand >= level).some((s) => s.status !== 'folded'),
+          );
+          const firstDead = live.indexOf(false);
+          if (firstDead === -1) continue;
+          // Every level above the first dead one must also be dead.
+          expect(live.slice(firstDead).some((isLive) => isLive)).toBe(false);
+        }
+      }),
+      { numRuns: Math.ceil(RUNS / 3) },
+    );
+  });
+
+  test('property: a post is dead money — it reaches the pot but never counts as the poster\'s bet', () => {
+    fc.assert(
+      fc.property(arbitraryScenario, (sc) => {
+        const { states, events } = playHand(sc);
+        const posted = new Map<number, number>();
+        for (const e of events) {
+          if (e.t === 'blindPosted' && e.blind === 'post') {
+            posted.set(e.seat, (posted.get(e.seat) ?? 0) + e.amount);
+          }
+        }
+        if (posted.size === 0) return;
+        const first = states[0];
+        if (!first) throw new Error('no opening state');
+        for (const [seat, amount] of posted) {
+          const row = first.seats[seat];
+          if (!row) throw new Error(`no seat ${seat}`);
+          // In the pot...
+          expect(row.committedThisHand).toBeGreaterThanOrEqual(amount);
+          // ...and none of it toward the current bet, so the poster still owes
+          // a call. Stated as a difference rather than "committedThisStreet is
+          // zero", because a returning player who lands on the small blind has
+          // that blind in front of them as a real bet — on TOP of the post.
+          expect(row.committedThisHand - row.committedThisStreet).toBeGreaterThanOrEqual(amount);
+        }
+      }),
+      { numRuns: Math.ceil(RUNS / 3) },
     );
   });
 });

@@ -51,8 +51,56 @@ export type Player = {
   skin: PlayerSkin;
   isHost: boolean;
   connected: boolean;
+  /** Where this player stands with the table (HOUSE-RULES #6, #7).
+   *  'in'      — dealt in.
+   *  'out'     — sitting out: seat and stack kept, dealt out entirely.
+   *  'waiting' — back, but waiting for the big blind to reach them. */
+  seatState: 'in' | 'out' | 'waiting';
+  /** Pressed Sit out during a live hand: applies once it ends (#11). */
+  sitOutAfterHand: boolean;
+  /** Chose to post rather than wait. Consumed by the next deal (#7). */
+  posting: boolean;
+  /** The big blind has passed this seat since they sat out, so returning is a
+   *  choice between posting and waiting rather than just being dealt in. */
+  missedBlind: boolean;
   send: (msg: ServerMessage) => void;
 };
+
+/** Walking clockwise, does the arc (from, to] contain `target`?
+ *  Used to answer "has the big blind passed this seat while it sat out". */
+export function blindPassed(from: number, to: number, target: number): boolean {
+  for (let step = 1; step <= MAX_SEATS; step++) {
+    const seat = (from + step) % MAX_SEATS;
+    if (seat === target) return true;
+    if (seat === to) return false;
+  }
+  return false;
+}
+
+/** Which seat the big blind will land on, for a given button and set of seats
+ *  in the hand.
+ *
+ *  The engine decides this and says so on `handStarted` — but only AFTER the
+ *  deal, and whether a waiting player rejoins THIS hand has to be settled
+ *  before it. So this mirrors the engine's rule (house rule 4 for heads-up,
+ *  otherwise first and second live seats left of the button), and a property
+ *  test asserts the two agree for every button and participant set. If they
+ *  ever drift, that test fails rather than a game night. */
+export function bigBlindSeatFor(inHand: readonly number[], button: number): number | null {
+  if (inHand.length < 2) return null;
+  const seated = new Set(inHand);
+  const nextIn = (from: number): number => {
+    for (let step = 1; step <= MAX_SEATS; step++) {
+      const seat = (from + step) % MAX_SEATS;
+      if (seated.has(seat)) return seat;
+    }
+    return from;
+  };
+  // Heads-up the button posts the small blind (house rule 4), so the big blind
+  // is the other player either way.
+  const smallBlind = inHand.length === 2 ? button : nextIn(button);
+  return nextIn(smallBlind);
+}
 
 export type ChipLogEntry = { at: number; playerName: string; delta: number; reason: string };
 
@@ -96,6 +144,9 @@ export class Table {
   /** When the current actor's clock expires. Broadcast so clients can draw it. */
   private actionDeadline: number | null = null;
   private nextHandTimer: NodeJS.Timeout | null = null;
+  /** Where the big blind sat last hand, so we can tell which away seats it has
+   *  since passed (HOUSE-RULES #7). Null until the first hand is dealt. */
+  private lastBigBlindSeat: number | null = null;
 
   constructor(
     config: TableConfig,
@@ -122,6 +173,10 @@ export class Table {
         if (!tokensMatch(player.token, input.existingToken)) continue;
         player.connected = true;
         player.send = input.send;
+        // Reconnecting restores your socket, not your seat in the game. A
+        // player who dropped is sitting out until they press I'm back
+        // (HOUSE-RULES #8) — otherwise a flaky connection would deal you into
+        // hands you are not watching.
         // Names are FROZEN for the duration of a hand, and always go through
         // uniqueName. A rename on reconnect used to orphan the hand record's
         // seeds and make an honest hand fail verification.
@@ -143,6 +198,10 @@ export class Table {
       skin: { chipStyle: 'casino', chipColour: this.nextFreeChipColour() },
       isHost: input.isHost,
       connected: true,
+      seatState: 'in',
+      sitOutAfterHand: false,
+      posting: false,
+      missedBlind: false,
       send: input.send,
     };
     this.players.set(player.playerId, player);
@@ -172,7 +231,17 @@ export class Table {
     if (!player) return;
     player.connected = false;
     // Seat and chips are kept — the player can reclaim them with their token.
-    // The action clock will check/fold for them if it is their turn.
+    //
+    // Whether they are sat out now depends on whether they hold cards
+    // (HOUSE-RULES #8, #9). With a live hand, nothing happens yet: their clock
+    // runs its full length, which is their window to reconnect and play it out.
+    // A live hand belongs to the player who was dealt it. With no live hand
+    // there is nothing to protect, so they sit out at once and the table stops
+    // dealing them in — which is the whole point, because a seat that is dealt
+    // in and always times out costs everyone else 45 seconds a street.
+    const seatIndex = this.seatOf(playerId);
+    const holdsCards = this.handInProgress() && stillInHand(this.hand?.seats[seatIndex]?.status);
+    if (seatIndex !== -1 && !holdsCards) this.setSittingOut(player);
     this.broadcast();
   }
 
@@ -186,6 +255,10 @@ export class Table {
         return this.sit(player, msg.seat, msg.buyIn);
       case 'standUp':
         return this.standUp(player);
+      case 'sitOut':
+        return this.sitOut(player);
+      case 'sitIn':
+        return this.sitIn(player, msg.post);
       case 'leave':
         return this.leave(player);
       case 'topUp':
@@ -239,6 +312,59 @@ export class Table {
     this.maybeScheduleNextHand();
     this.broadcast();
     return null;
+  }
+
+  /** Sitting out keeps the seat and the chips (HOUSE-RULES #6). During a live
+   *  hand it applies from the next one (#11) — you finish what you were dealt. */
+  private sitOut(player: Player): ServerMessage | null {
+    if (this.seatOf(player.playerId) === -1) return err('notSeated', 'You are not seated.');
+    if (player.seatState === 'out') return err('alreadyOut', 'You are already sitting out.');
+    const seatIndex = this.seatOf(player.playerId);
+    if (this.handInProgress() && stillInHand(this.hand?.seats[seatIndex]?.status)) {
+      player.sitOutAfterHand = true;
+      this.broadcast();
+      return null;
+    }
+    this.setSittingOut(player);
+    this.broadcast();
+    return null;
+  }
+
+  /** I'm back (#7). If the big blind has not passed you, you are simply dealt
+   *  into the next hand. If it has, `post` decides: pay it now, or wait for it
+   *  to reach you. Either way you pay it — you only choose when. */
+  private sitIn(player: Player, post: boolean): ServerMessage | null {
+    if (this.seatOf(player.playerId) === -1) return err('notSeated', 'You are not seated.');
+    if (player.seatState === 'in') {
+      // Pressing I'm back while a sit-out is pending cancels it — that is the
+      // Cancel button, not a mistake worth an error.
+      if (!player.sitOutAfterHand) return err('alreadyIn', 'You are already in the game.');
+      player.sitOutAfterHand = false;
+      this.broadcast();
+      return null;
+    }
+    player.sitOutAfterHand = false;
+    if (!player.missedBlind) {
+      player.seatState = 'in';
+      player.posting = false;
+    } else if (post) {
+      player.seatState = 'in';
+      player.posting = true;
+    } else {
+      player.seatState = 'waiting';
+      player.posting = false;
+    }
+    this.maybeScheduleNextHand();
+    this.broadcast();
+    return null;
+  }
+
+  /** One place that puts a player out, so every route into sitting-out — the
+   *  button, a timeout, a dropped connection — leaves identical state. */
+  private setSittingOut(player: Player): void {
+    player.seatState = 'out';
+    player.sitOutAfterHand = false;
+    player.posting = false;
   }
 
   private standUp(player: Player): ServerMessage | null {
@@ -313,7 +439,8 @@ export class Table {
       const playerId = this.seats[i] ?? null;
       if (playerId === null || (this.stacks[i] ?? 0) <= 0) continue;
       const player = this.players.get(playerId);
-      if (player) out.push({ seat: i, player });
+      // Sitting out and waiting-for-the-big-blind are both dealt out (#6, #7).
+      if (player && player.seatState === 'in') out.push({ seat: i, player });
     }
     return out;
   }
@@ -321,8 +448,11 @@ export class Table {
   // -------------------------------------------------------------- hand lifecycle
 
   private startNextHand(): ServerMessage | null {
-    const participants = this.participatingSeats();
-    if (participants.length < 2) {
+    // A player waiting for the big blind when the table cannot otherwise deal
+    // is admitted now — waiting for a rotation that is not turning is just a
+    // stalled table, and there is nothing to dodge when there is no game.
+    this.admitStalledWaiters();
+    if (this.participatingSeats().length < 2) {
       return err('needPlayers', 'Need at least two seated players with chips.');
     }
     this.clearTimers();
@@ -333,8 +463,17 @@ export class Table {
     this.handActions = [];
     this.revealedSeed = null;
 
-    // Advance the button to the next occupied seat with chips.
+    // Advance the button to the next seat that is actually dealt in.
     this.button = this.nextEligibleSeat(this.handNumber === 1 ? MAX_SEATS - 1 : this.button);
+    // With the button fixed, a player waiting for the big blind joins if it has
+    // now reached their seat (HOUSE-RULES #7). They post it as the big blind
+    // like anyone else — which is the whole point: you cannot skip your blind
+    // by sitting out, only choose when you pay it.
+    this.admitWaiterDueTheBigBlind();
+    const participants = this.participatingSeats();
+    if (participants.length < 2) {
+      return err('needPlayers', 'Need at least two seated players with chips.');
+    }
 
     // --- Fairness ------------------------------------------------------------
     // Consume the commitment minted a hand ago, then immediately mint the one
@@ -378,7 +517,17 @@ export class Table {
       seats.push({
         index: i,
         playerId,
-        status: playerId === null ? 'empty' : dealtIn.has(i) ? 'active' : 'busted',
+        // Sitting out is NOT busted: they have chips and a seat, they are just
+        // not in this hand. The engine reads 'sittingOut' and deals them out
+        // while leaving their stack alone.
+        status:
+          playerId === null
+            ? 'empty'
+            : dealtIn.has(i)
+              ? 'active'
+              : (this.stacks[i] ?? 0) > 0
+                ? 'sittingOut'
+                : 'busted',
         stack: chips(Math.max(0, stack)),
         holeCards: [],
         committedThisStreet: chips(0),
@@ -386,6 +535,26 @@ export class Table {
         hasActedThisStreet: false,
         isAllIn: false,
       });
+    }
+
+    // Players who chose to buy straight back in rather than wait (#7). A seat
+    // that is paying a blind this hand must not also post — the engine treats
+    // that as a bug and throws — so the blinds are worked out first and those
+    // seats are skipped. Either way `posting` is consumed here.
+    const dealtSeats = participants.map((p) => p.seat);
+    const bigBlindSeat = bigBlindSeatFor(dealtSeats, this.button);
+    const posts: { seat: number; amount: Chips }[] = [];
+    for (const { seat, player } of participants) {
+      if (!player.posting) continue;
+      player.posting = false;
+      player.missedBlind = false;
+      // Coming back costs one full orbit, never less (HOUSE-RULES #7). Landing
+      // on the big blind IS that payment, so no post. Landing on the small
+      // blind is not — without the post on top, sitting out would be the
+      // cheapest seat at the table, which is exactly backwards.
+      if (seat === bigBlindSeat) continue;
+      posts.push({ seat, amount: chips(this.config.bigBlind) });
+      this.logChips(player.name, -this.config.bigBlind, 'posted the big blind to come back in');
     }
 
     const { state, events } = startHand({
@@ -400,18 +569,81 @@ export class Table {
       deck,
       handNumber: this.handNumber,
       rules: DEFAULT_RULES,
+      posts,
     });
     this.hand = state;
+    this.noteBlindPassedSittingOutSeats(events);
     this.afterEngineStep(events);
     return null;
   }
 
+  /** After a deal, mark every away seat the big blind has now passed. That is
+   *  what turns "just sit back down" into "post it or wait for it" (#7). The
+   *  blind seats come off the engine's own handStarted event rather than being
+   *  recomputed, so this cannot disagree with the hand that was actually dealt. */
+  private noteBlindPassedSittingOutSeats(events: readonly Event[]): void {
+    const started = events.find((e) => e.t === 'handStarted');
+    if (!started || started.t !== 'handStarted') return;
+    const from = this.lastBigBlindSeat;
+    const to = started.bigBlindSeat;
+    this.lastBigBlindSeat = to;
+    if (from === null) return;
+    for (let seat = 0; seat < MAX_SEATS; seat++) {
+      const player = this.playerAtSeat(seat);
+      if (!player || player.seatState === 'in') continue;
+      if (blindPassed(from, to, seat)) player.missedBlind = true;
+    }
+  }
+
+  /** Waiting players join when the big blind reaches them (#7). */
+  private admitWaiterDueTheBigBlind(): void {
+    const inHand: number[] = [];
+    const waiting: number[] = [];
+    for (let seat = 0; seat < MAX_SEATS; seat++) {
+      const player = this.playerAtSeat(seat);
+      if (!player || (this.stacks[seat] ?? 0) <= 0) continue;
+      if (player.seatState === 'in') inHand.push(seat);
+      else if (player.seatState === 'waiting') waiting.push(seat);
+    }
+    if (waiting.length === 0 || inHand.length < 2) return;
+    const due = bigBlindSeatFor([...inHand, ...waiting].sort((a, b) => a - b), this.button);
+    if (due === null) return;
+    const player = this.playerAtSeat(due);
+    if (player?.seatState === 'waiting') {
+      player.seatState = 'in';
+      player.missedBlind = false;
+    }
+  }
+
+  /** See the call site: waiting out a rotation that is not turning is just a
+   *  stalled table, and there is no blind to dodge when there is no hand. */
+  private admitStalledWaiters(): void {
+    const canDeal = () => this.participatingSeats().length >= 2;
+    if (canDeal()) return;
+    for (let seat = 0; seat < MAX_SEATS; seat++) {
+      const player = this.playerAtSeat(seat);
+      if (!player || player.seatState !== 'waiting' || (this.stacks[seat] ?? 0) <= 0) continue;
+      player.seatState = 'in';
+      player.missedBlind = false;
+      if (canDeal()) return;
+    }
+  }
+
+  private playerAtSeat(seat: number): Player | undefined {
+    const playerId = this.seats[seat];
+    return playerId === null || playerId === undefined ? undefined : this.players.get(playerId);
+  }
+
+  /** The next seat that is actually dealt in. Sitting-out seats are skipped
+   *  (HOUSE-RULES #6) — and must be, because startHand throws if the button
+   *  lands on a seat that is not in the hand. */
   private nextEligibleSeat(from: number): number {
     for (let step = 1; step <= MAX_SEATS; step++) {
       const i = (from + step) % MAX_SEATS;
-      if (this.seats[i] !== null && (this.stacks[i] ?? 0) > 0) return i;
+      if ((this.stacks[i] ?? 0) <= 0) continue;
+      if (this.playerAtSeat(i)?.seatState === 'in') return i;
     }
-    return 0;
+    return from;
   }
 
   private playerAction(
@@ -531,6 +763,12 @@ export class Table {
     this.persistHand(record);
 
     this.serverSeed = null;
+    // Sit-out requested during the hand now takes effect (HOUSE-RULES #11),
+    // as does a disconnection that was protected while cards were live (#9).
+    for (const player of this.players.values()) {
+      const stillAway = player.sitOutAfterHand || (!player.connected && player.seatState === 'in');
+      if (stillAway && this.seatOf(player.playerId) !== -1) this.setSittingOut(player);
+    }
     this.maybeScheduleNextHand();
   }
 
@@ -571,20 +809,45 @@ export class Table {
     this.actionDeadline = Date.now() + ACTION_CLOCK_MS;
     const actingSeat = hand.actingSeat;
     const handNumber = this.handNumber;
+    // A player already sitting out still holds cards from the hand they were in
+    // when it happened. Those decisions resolve AT ONCE rather than on a clock
+    // (HOUSE-RULES #10) — the table waits for an absence once, never twice.
+    const actor = this.playerAtSeat(actingSeat);
+    if (actor && actor.seatState !== 'in') {
+      this.actionDeadline = null;
+      queueMicrotask(() => {
+        if (this.hand === hand && this.hand?.actingSeat === actingSeat) {
+          this.resolveAbsentAction(actingSeat, handNumber);
+        }
+      });
+      return;
+    }
     this.actionTimer = setTimeout(() => {
-      const current = this.hand;
-      if (!current || this.handNumber !== handNumber || current.actingSeat !== actingSeat) return;
-      // Disconnect/timeout policy: auto-check when free, otherwise fold.
-      const check = applyAction(current, { seat: actingSeat, action: { kind: 'check' } });
-      const result = check.ok
-        ? check
-        : applyAction(current, { seat: actingSeat, action: { kind: 'fold' } });
-      if (result.ok) {
-        this.handActions.push({ seat: actingSeat, action: check.ok ? 'check (timeout)' : 'fold (timeout)' });
-        this.hand = result.state;
-        this.afterEngineStep(result.events);
-      }
+      // Letting the clock run out sits you out (HOUSE-RULES #8), whether you
+      // are away from the keyboard or disconnected mid-hand.
+      const timedOut = this.playerAtSeat(actingSeat);
+      if (timedOut) this.setSittingOut(timedOut);
+      this.resolveAbsentAction(actingSeat, handNumber);
     }, ACTION_CLOCK_MS);
+  }
+
+  /** Act for a seat that is not going to act for itself: check when it is free,
+   *  fold when facing a bet. The one policy, used by both the expired clock and
+   *  a seat that is already sitting out. */
+  private resolveAbsentAction(actingSeat: number, handNumber: number): void {
+    const current = this.hand;
+    if (!current || this.handNumber !== handNumber || current.actingSeat !== actingSeat) return;
+    const check = applyAction(current, { seat: actingSeat, action: { kind: 'check' } });
+    const result = check.ok
+      ? check
+      : applyAction(current, { seat: actingSeat, action: { kind: 'fold' } });
+    if (!result.ok) return;
+    this.handActions.push({
+      seat: actingSeat,
+      action: check.ok ? 'check (away)' : 'fold (away)',
+    });
+    this.hand = result.state;
+    this.afterEngineStep(result.events);
   }
 
   private clearActionTimer(): void {
@@ -617,6 +880,12 @@ export class Table {
         avatar: player.avatar,
         skin: player.skin,
         connected: player.connected,
+        away:
+          player.seatState === 'in'
+            ? 'no'
+            : player.seatState === 'waiting'
+              ? 'waitingForBigBlind'
+              : 'sittingOut',
       };
     });
     return {
@@ -634,6 +903,21 @@ export class Table {
         smallBlind: this.config.smallBlind,
         bigBlind: this.config.bigBlind,
         ante: this.config.ante,
+      },
+      youFor: (viewerPlayerId: string | null) => {
+        if (viewerPlayerId === null) return null;
+        const player = this.players.get(viewerPlayerId);
+        if (!player || this.seatOf(viewerPlayerId) === -1) return null;
+        return {
+          away:
+            player.seatState === 'in'
+              ? ('no' as const)
+              : player.seatState === 'waiting'
+                ? ('waitingForBigBlind' as const)
+                : ('sittingOut' as const),
+          sitOutAfterHand: player.sitOutAfterHand,
+          missedBlind: player.missedBlind,
+        };
       },
       fairness: {
         handNumber: this.handNumber,

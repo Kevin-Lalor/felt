@@ -921,3 +921,35 @@ input {
 
 .miniTable__bet { display: flex; align-items: center; gap: 5px; color: var(--text-on-felt); }
 .miniTable__bet .seat__bet-amount { font-size: var(--chip-denom-size); }
+
+/* Sitting out (HOUSE-RULES #6-#11) ---------------------------------------- */
+/* A seat that is away reads as quiet, not broken: the felt has to make it
+   obvious at a glance that the table is not waiting on that player. Reusing
+   the folded opacity deliberately — both mean "not in this hand". */
+.seat--sittingout {
+  opacity: var(--seat-folded-opacity);
+  border-style: dashed;
+}
+.seat--sittingout .seat__stack {
+  letter-spacing: 0.06em;
+  font-size: var(--seat-name-size);
+  color: var(--text-secondary);
+}
+
+.away {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.away__label {
+  color: var(--text-secondary);
+  font-size: var(--seat-name-size);
+}
+/* Pushed away from the keyboard hints so a stray tap never sits you out. */
+.away__sitout { margin-right: 12px; }
+
+@media (max-width: 520px) {
+  .away { justify-content: center; width: 100%; }
+  .away__label { width: 100%; text-align: center; }
+}

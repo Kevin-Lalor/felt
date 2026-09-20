@@ -9,6 +9,7 @@ import type {
   HouseRules,
   LegalActions,
   PlayerAction,
+  Post,
   Pot,
   Seat,
   SeatIndex,
@@ -387,6 +388,9 @@ export function startHand(input: {
   deck: Deck;
   handNumber: number;
   rules: HouseRules;
+  /** Players returning from sitting out who chose to post rather than wait for
+   *  the big blind. Dead money; see the Post type. */
+  posts?: readonly Post[];
 }): { state: HandState; events: readonly Event[] } {
   assertValidDeck(input.deck);
   if (input.blinds.bigBlind < 1) throw new EngineError('bigBlind must be at least 1');
@@ -438,7 +442,6 @@ export function startHand(input: {
     throw new EngineError('button must be on a seat that is dealt in');
   }
 
-  const events: Event[] = [{ t: 'handStarted', handNumber: d.handNumber, button: d.button }];
   const isActive = (s: DraftSeat) => s.status === 'active' || s.status === 'allIn';
 
   // Heads-up: the button posts the small blind (house rule 4). Otherwise the
@@ -448,6 +451,48 @@ export function startHand(input: {
     ? must(d.seats[d.button], 'button seat')
     : must(nextSeatWhere(d, d.button, isActive), 'small blind seat');
   const bbSeat = must(nextSeatWhere(d, sbSeat.index, isActive), 'big blind seat');
+
+  const events: Event[] = [
+    {
+      t: 'handStarted',
+      handNumber: d.handNumber,
+      button: d.button,
+      smallBlindSeat: sbSeat.index,
+      bigBlindSeat: bbSeat.index,
+    },
+  ];
+
+  // Posts from players returning mid-rotation (HOUSE-RULES #7). Dead, like an
+  // ante: committedThisHand only, so the poster still owes a call. Validated
+  // here because a post on the wrong seat is a server bug, not a player error —
+  // a seat already paying a blind must never be asked to post as well.
+  for (const post of input.posts ?? []) {
+    const seat = d.seats[post.seat];
+    if (!seat) throw new EngineError(`post on seat ${post.seat}, which does not exist`);
+    if (seat.status !== 'active') {
+      throw new EngineError(`post on seat ${post.seat}, which is not dealt in`);
+    }
+    // The SMALL blind may also post: a player returning after missing their
+    // blind owes a full orbit (small + big), and landing on the small blind
+    // must not be a cheaper way back in than waiting. The BIG blind may not —
+    // they are already paying the blind they missed, so a post on top would
+    // charge them twice for the same thing.
+    if (seat.index === bbSeat.index) {
+      throw new EngineError(`seat ${post.seat} is paying the big blind and cannot post as well`);
+    }
+    // No negative check: Chips cannot be negative by construction (chips()
+    // throws), so a guard here could never fire.
+    const pay = Math.min(post.amount, seat.stack);
+    if (pay > 0) {
+      seat.stack -= pay;
+      seat.committedThisHand += pay;
+      if (seat.stack === 0) {
+        seat.isAllIn = true;
+        seat.status = 'allIn';
+      }
+      events.push({ t: 'blindPosted', seat: seat.index, amount: c(pay), blind: 'post' });
+    }
+  }
 
   // Antes first, then blinds (docs/ENGINE-SPEC.md §3). Antes go straight into
   // the pot: committedThisHand only, never committedThisStreet — they don't
