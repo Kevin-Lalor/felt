@@ -12,6 +12,9 @@ export type SeatOccupant = {
   playerId: string;
   name: string;
   avatar: number;
+  /** At the table but not in this hand, and why (HOUSE-RULES #6, #7). Public:
+   *  everyone needs to see who is away, or the felt looks broken. */
+  away: 'no' | 'sittingOut' | 'waitingForBigBlind';
   /** Public cosmetics — see playerSkinSchema in @poker/protocol. */
   skin: PlayerSkin;
   connected: boolean;
@@ -39,6 +42,8 @@ export type TableSnapshot = {
   blinds: { smallBlind: number; bigBlind: number; ante: number };
   /** Mirrors the wire shape exactly so buildView passes it straight through. */
   fairness: TableView['fairness'];
+  /** Per-viewer: your own sit-out situation, or null when you are not seated. */
+  youFor: (viewerPlayerId: string | null) => TableView['you'];
 };
 
 /** Streets where hole cards are still private. After 'showdown' the engine has
@@ -89,6 +94,7 @@ function buildSeatView(
     hasCards: (ownSeat?.holeCards.length ?? 0) > 0 && ownSeat?.status !== 'folded',
     skin: occupant?.skin ?? NO_SKIN,
     connected: occupant?.connected ?? false,
+    away: occupant?.away ?? 'no',
   };
 
   if (!hand || !handSeat || handSeat.holeCards.length === 0) return base;
@@ -175,5 +181,6 @@ export function buildView(snapshot: TableSnapshot, viewerPlayerId: string | null
       : null,
     fairness: snapshot.fairness,
     hostId: snapshot.hostId,
+    you: snapshot.youFor(viewerPlayerId),
   };
 }

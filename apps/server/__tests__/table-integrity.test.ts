@@ -28,7 +28,7 @@ import { Table } from '../src/table.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
-const CONFIG: TableConfig = {
+export const CONFIG: TableConfig = {
   tableName: 'integrity test',
   smallBlind: 1,
   bigBlind: 2,
@@ -37,9 +37,9 @@ const CONFIG: TableConfig = {
   maxBuyIn: 400,
 };
 
-type Seated = { id: string; token: string; seat: number; sent: ServerMessage[] };
+export type Seated = { id: string; token: string; seat: number; sent: ServerMessage[] };
 
-class Harness {
+export class Harness {
   readonly records: HandRecord[] = [];
   readonly table: Table;
   readonly players = new Map<string, Seated>();

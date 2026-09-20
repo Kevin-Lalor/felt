@@ -90,6 +90,11 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   }),
   z.object({ type: z.literal('sit'), seat: z.number().int().min(0).max(8), buyIn: chipsSchema }),
   z.object({ type: z.literal('standUp') }),
+  // Sitting out keeps your seat and stack (HOUSE-RULES #6). Leaving does not.
+  z.object({ type: z.literal('sitOut') }),
+  // `post: true` buys straight back in with a dead big blind rather than
+  // waiting for the big blind to reach you (HOUSE-RULES #7).
+  z.object({ type: z.literal('sitIn'), post: z.boolean() }),
   z.object({ type: z.literal('leave') }),
   /** Rebuy/top-up between hands. Publicly logged for the whole table. */
   z.object({ type: z.literal('topUp'), amount: chipsSchema }),
@@ -116,6 +121,9 @@ export const seatViewSchema = z.object({
   name: z.string().nullable(),
   avatar: z.number().int().nullable(),
   status: z.enum(['empty', 'active', 'folded', 'allIn', 'sittingOut', 'busted']),
+  /** At the table but not in this hand, and why — so the felt can say
+   *  "sitting out" rather than leaving a seat looking broken. */
+  away: z.enum(['no', 'sittingOut', 'waitingForBigBlind']),
   stack: chipsSchema,
   committedThisStreet: chipsSchema,
   isAllIn: z.boolean(),
@@ -166,6 +174,19 @@ export const tableViewSchema = z.object({
   seats: z.array(seatViewSchema),
   /** The recipient's seat index at this table, or null when spectating. */
   yourSeat: z.number().int().nullable(),
+  /** Your own sit-out situation. Null when you are not seated. Separate from
+   *  the seat view because only you need it — it drives which button you see,
+   *  not what the table looks like. */
+  you: z
+    .object({
+      away: z.enum(['no', 'sittingOut', 'waitingForBigBlind']),
+      /** You pressed Sit out during a live hand; it applies next hand (#11). */
+      sitOutAfterHand: z.boolean(),
+      /** The big blind passed your seat while you were out, so coming back
+       *  means choosing: post it now, or wait for it to reach you (#7). */
+      missedBlind: z.boolean(),
+    })
+    .nullable(),
   /** Wall-clock ms (Date.now()) when the acting player's clock expires, or null
    *  when nobody is on the clock. The server has always run this clock; it just
    *  had no field to travel in, so no client could draw a countdown. */

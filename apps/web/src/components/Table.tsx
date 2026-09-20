@@ -71,6 +71,7 @@ function SeatPlate({
     isActing ? 'seat--acting' : '',
     folded ? 'seat--folded' : '',
     seat.isAllIn ? 'seat--allin' : '',
+    seat.away !== 'no' ? 'seat--sittingout' : '',
     !seat.connected ? 'seat--away' : '',
   ]
     .filter(Boolean)
@@ -96,7 +97,11 @@ function SeatPlate({
           {clock && <span className="seat__clock">{formatClock(clock.msLeft)}</span>}
         </span>
         <span className="seat__stack">
-          {folded ? (
+          {seat.away === 'sittingOut' ? (
+            'SITTING OUT'
+          ) : seat.away === 'waitingForBigBlind' ? (
+            'WAITING FOR BB'
+          ) : folded ? (
             'FOLDED'
           ) : seat.isAllIn ? (
             'ALL IN'
