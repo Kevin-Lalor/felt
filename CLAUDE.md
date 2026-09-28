@@ -71,13 +71,14 @@ pnpm test             # everything
 pnpm test:engine      # fast (<2s) — run this constantly while working in packages/engine
 pnpm test:property    # fast-check, ~60s — run before opening a PR
 pnpm test:leak        # redaction fuzzer, 5000 hands — run before any PR touching the protocol
-pnpm test:e2e         # Playwright, 4 simulated clients through a full hand
+pnpm test:e2e         # NOT BUILT: Playwright is configured but there are zero specs, so this passes on nothing
 pnpm typecheck
 pnpm lint
 pnpm build
 pnpm verify-hand <handId>   # re-derives a past hand from its seeds; proves the shuffle
-pnpm db:migrate
-pnpm db:snapshot
+pnpm bot Mo --style loose   # a bot that sits and plays — run two or three to test a table solo
+pnpm db:migrate       # NOT BUILT: points at a server script nobody wrote (SQLite is Phase 2)
+pnpm db:snapshot      # NOT BUILT: same
 ```
 
 ---
@@ -161,6 +162,34 @@ heads-up, 9-handed), **stop and ask** rather than inventing the layout.
 - Comments explain *why*, not *what*. Especially for poker edge cases — write the rule out.
 
 ---
+
+## Git and GitHub
+
+Sessions run in Claude's cloud container, started **from the repo** with the Claude GitHub
+app granting access. The container's git proxy attaches the credential itself — no token is
+ever pasted, stored in the repo, or shown to Claude. **GitHub is the source of truth**; any
+local working copy (e.g. `G:\poker`) may be stale.
+
+**Claude does all the git.** Kevin reviews and merges on GitHub, often from a phone.
+
+- One branch per feature, named `feat/…`, `fix/…`, `docs/…`, `tools/…`, cut from an
+  up-to-date `main`. Never commit to `main` directly — the ruleset blocks it anyway.
+- Conventional Commits. The message says *why*, in plain language Kevin can review without
+  reading the diff. Do not use `--no-verify`; the hooks work in the container.
+- **Before pushing, run what CI runs**, in the container: `pnpm typecheck`, `pnpm lint`,
+  `pnpm build`, `pnpm test`, `PROPERTY=1 pnpm test:property`, `pnpm test:leak`,
+  `pnpm test:integrity`, the engine coverage gate, and the two grep guards in
+  `.github/workflows/ci.yml`. A red PR costs Kevin a round-trip he may not be at a desk for.
+- For anything that touches the table, also **play a hand against the bots** before pushing.
+- Push the branch and open the PR. If the PR cannot be opened from the session, give Kevin
+  the compare link instead: `https://github.com/Kevin-Lalor/felt/compare/main...<branch>?expand=1`.
+- `--force-with-lease` only, and only on your own unmerged branch. Never force-push `main`.
+- After a merge, pull `main` before starting the next branch.
+
+**If a push fails** with *"not in this session's authorized repository set"*, the session was
+started without repo access. **Stop and tell Kevin** to start the session from the `felt`
+repo (or add it to the session). Do not route around it, and **never ask for a personal
+access token** — it would sit in the transcript.
 
 ## Working agreement
 
