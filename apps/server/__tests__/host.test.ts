@@ -116,7 +116,7 @@ class Room {
 
   removedTotal(): number {
     return this.table.chipLog
-      .filter((e) => e.reason === 'removed by host')
+      .filter((e) => e.reason.startsWith('removed by host'))
       .reduce((sum, e) => sum - e.delta, 0);
   }
 }
@@ -156,7 +156,8 @@ describe('removing a player (HOUSE-RULES #14)', () => {
 
   test('mid-hand, not their turn: the hand is dead at once and their chips stay in the pot', () => {
     const room = new Room();
-    room.join('Kev', 0, 200, true);
+    // The host deals from the rail, so is in no pot: removal is at once (#18).
+    room.join('Kev', null, 200, true);
     room.join('Ann', 1);
     room.join('Bob', 2);
     room.join('Cat', 3);
@@ -184,7 +185,7 @@ describe('removing a player (HOUSE-RULES #14)', () => {
 
   test('removing someone else does not give the player on the clock a fresh clock', () => {
     const room = new Room();
-    room.join('Kev', 0, 200, true);
+    room.join('Kev', null, 200, true);
     room.join('Ann', 1);
     room.join('Bob', 2);
     room.join('Cat', 3);
@@ -201,36 +202,87 @@ describe('removing a player (HOUSE-RULES #14)', () => {
     expect(room.view(acting).you?.away).toBe('sittingOut');
   });
 
-  test('heads-up: removing the other player ends the hand, and the pot — their bet too — goes to the one left', () => {
+  test('host in the same pot: the removal waits until the hand ends (#18)', () => {
+    // Heads-up, Ann raises into the host. Removing her now would win the host
+    // the pot without a call, so she plays the hand out and leaves after it.
     const room = new Room();
     room.join('Kev', 0, 200, true);
     const ann = room.join('Ann', 1);
     room.do('Kev', { type: 'startHand' });
-    // Whoever acts first raises, so a bet is out that nobody has called.
     const first = room.actingName();
     room.act(first, { kind: 'raise', to: 20 });
-    if (first === 'Ann') {
-      room.do('Kev', { type: 'kick', playerId: ann.id });
-      expect(room.view().street).toBe('complete');
-      // Kev had 2 in (big blind); Ann's 20 stays in the pot and Kev wins it.
-      expect(room.view().seats[0]?.stack).toBe(220);
-      expect(room.removedTotal()).toBe(180);
-    } else {
-      room.do('Kev', { type: 'kick', playerId: ann.id });
-      expect(room.view().street).toBe('complete');
-      // Ann's big blind (2) stays in; Kev takes back his own 20 and wins her 2.
-      expect(room.view().seats[0]?.stack).toBe(202);
-      expect(room.removedTotal()).toBe(198);
+    expect(room.do('Kev', { type: 'kick', playerId: ann.id })).toBeNull();
+    // Nothing happened to the hand: Ann is still in it, and still at the table.
+    expect(room.view().seats[1]?.hasCards).toBe(true);
+    expect(room.table.getPlayer(ann.id)).toBeDefined();
+    expect(ann.closed).toBe(false);
+    expect(room.view().players.find((p) => p.playerId === ann.id)?.removeAfterHand).toBe(true);
+    expect(room.removedTotal()).toBe(0);
+    // Play it out: whoever is to act calls or checks down.
+    for (let guard = 0; guard < 30 && room.table.handInProgress(); guard++) {
+      const name = room.actingName();
+      room.act(name, room.view(name).legal?.canCheck ? { kind: 'check' } : { kind: 'call' });
     }
+    expect(room.table.handInProgress()).toBe(false);
+    // Now she is gone, with whatever she ended the hand with.
+    expect(room.table.getPlayer(ann.id)).toBeUndefined();
+    expect(ann.closed).toBe(true);
+    expect(room.view().seats[1]?.playerId).toBeNull();
+    expect(room.view().seats[0]!.stack + room.removedTotal()).toBe(400); // non-null: Kev is seated
+  });
+
+  test('host not in the pot: removed at once, and the raise nobody called goes back with them (#19)', () => {
+    // Host on the button folds; Ann raises to 20 into Bob's big blind; the host
+    // removes Ann. Bob matched only 2 of her 20, so 18 goes back to Ann — and
+    // leaves the table with her. Bob wins what he matched, not her raise.
+    const room = new Room();
+    room.join('Kev', 0, 200, true);
+    const ann = room.join('Ann', 1);
+    room.join('Bob', 2);
+    room.do('Kev', { type: 'startHand' });
+    expect(room.actingName()).toBe('Kev');
+    room.act('Kev', { kind: 'fold' });
+    room.act('Ann', { kind: 'raise', to: 20 });
+    room.do('Kev', { type: 'kick', playerId: ann.id });
+    expect(room.table.handInProgress()).toBe(false);
+    expect(room.view().seats[2]?.stack).toBe(202);
+    const log = room.table.chipLog.filter((e) => e.playerName === 'Ann').map((e) => [e.delta, e.reason]);
+    expect(log).toContainEqual([-18, 'removed by host (unmatched bet)']);
+    expect(log).toContainEqual([-180, 'removed by host']);
+    expect(room.chipsInPlay() + room.removedTotal()).toBe(600);
     const record = room.records.at(-1);
     expect(record?.actions.some((a) => a.action === 'removed by host')).toBe(true);
   });
 
+  test('Kevin’s case at the table: the short stack wins what it matched, the folder gets its bet back', () => {
+    // Host on the rail. Ann (seat 0) all-in for 20; Bob and Cat call. Flop:
+    // Bob bets 30, Cat raises to 100, the host removes Cat, Bob folds.
+    const room = new Room();
+    room.join('Kev', null, 200, true);
+    room.join('Ann', 0, 20);
+    room.join('Bob', 1, 200);
+    const cat = room.join('Cat', 2, 200);
+    room.do('Kev', { type: 'startHand' });
+    room.act('Ann', { kind: 'allIn' });
+    room.act('Bob', { kind: 'call' });
+    room.act('Cat', { kind: 'call' });
+    room.act('Bob', { kind: 'bet', to: 30 });
+    room.act('Cat', { kind: 'raise', to: 100 });
+    room.do('Kev', { type: 'kick', playerId: cat.id });
+    expect(room.view('Bob').legal?.callAmount).toBe(70); // the bet still stands (#20)
+    room.act('Bob', { kind: 'fold' });
+    expect(room.table.handInProgress()).toBe(false);
+    expect(room.view().seats[0]?.stack).toBe(60); // 20 from each, no more
+    expect(room.view().seats[1]?.stack).toBe(180); // Bob's 30 came back
+    expect(room.removedTotal()).toBe(180); // Cat's 80 behind + 100 unmatched
+  });
+
   test('an all-in player can be removed: their hand is dead and it is never paid', () => {
     const room = new Room();
-    room.join('Kev', 0, 200, true);
+    room.join('Kev', null, 200, true);
     const ann = room.join('Ann', 1, 20);
     room.join('Bob', 2);
+    room.join('Cat', 3);
     room.do('Kev', { type: 'startHand' });
     for (let guard = 0; guard < 10 && room.view().seats[1]?.isAllIn !== true; guard++) {
       const name = room.actingName();
@@ -413,7 +465,8 @@ describe('mucked hands stay hidden (HOUSE-RULES #16)', () => {
     // were. Ann folds and is removed mid-hand; after the hand Bob takes her
     // seat and presses Show.
     const room = new Room();
-    room.join('Kev', 0, 200, true);
+    room.join('Kev', null, 200, true);
+    room.join('Dee', 0);
     const ann = room.join('Ann', 1);
     room.join('Cat', 2);
     room.join('Bob', null);

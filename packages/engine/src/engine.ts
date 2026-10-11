@@ -51,6 +51,7 @@ type Draft = {
   actingSeat: SeatIndex | null;
   lastAggressor: SeatIndex | null;
   noRaiseSeats: SeatIndex[];
+  deadHands: SeatIndex[];
   rules: HouseRules;
 };
 
@@ -61,6 +62,7 @@ function toDraft(state: HandState): Draft {
     board: [...state.board],
     pots: state.pots.map((p) => ({ amount: p.amount, eligibleSeats: [...p.eligibleSeats] })),
     noRaiseSeats: [...state.noRaiseSeats],
+    deadHands: [...state.deadHands],
   };
 }
 
@@ -90,6 +92,7 @@ function freeze(d: Draft): HandState {
     actingSeat: d.actingSeat,
     lastAggressor: d.lastAggressor,
     noRaiseSeats: d.noRaiseSeats,
+    deadHands: d.deadHands,
     rules: d.rules,
   };
 }
@@ -239,11 +242,12 @@ function buildPots(d: Draft): Pot[] {
   }
   const lastPot = pots[pots.length - 1];
   if (!lastPot) {
-    // Every chip in the middle came from hands that are dead. In ordinary play
-    // that cannot happen — a seat still in the hand has always called
-    // something — but the host can kill hands (killHand), e.g. both blinds
-    // while the others have yet to act. The money stays in the pot, and the
-    // seats still holding cards play for it.
+    // Nothing in the middle that a seat still holding cards can win. In
+    // ordinary play that cannot happen — a seat still in the hand has always
+    // put something in — but the host can remove players (killHand), e.g. both
+    // blinds before anyone else acts. Their chips went back to them
+    // (returnUnmatchedChips, HOUSE-RULES #19), so this pot is empty; it is
+    // still formed so the hand ends the usual way, with a winner.
     const live = d.seats.filter(notFolded).map((s) => s.index);
     if (live.length === 0) throw new EngineError('no pot with an eligible winner — chip accounting bug');
     return [{ amount: c(deadMoney), eligibleSeats: live }];
@@ -268,9 +272,46 @@ const NEXT_STREET: Partial<Record<Street, Street>> = {
 
 const STREET_CARDS: Partial<Record<Street, number>> = { flop: 3, turn: 1, river: 1 };
 
+/** HOUSE-RULES #19 (11 Oct 2026). In a hand where the host removed someone,
+ *  nobody may win chips that nobody still holding cards has matched: a short
+ *  all-in player wins at most what they risked from each opponent. So every
+ *  contribution level that no live seat reached, and that a removed seat put
+ *  chips into, goes back to whoever put chips in at that level — the removed
+ *  player's share leaves the table with them; a folder's share is theirs again.
+ *
+ *  Levels nobody live reached are always the TOP levels (contributors at a
+ *  higher level are a subset of those below), and without a removed seat they
+ *  are ordinary dead money — a folded big-blind ante — which still goes to
+ *  the winner as it always has. That is why this does nothing in a hand
+ *  where nobody was removed. */
+function returnUnmatchedChips(d: Draft, events: Event[]): void {
+  if (d.deadHands.length === 0) return;
+  const biggestLiveStake = Math.max(0, ...d.seats.filter(notFolded).map((s) => s.committedThisHand));
+  const levels = [
+    ...new Set(d.seats.map((s) => s.committedThisHand).filter((v) => v > biggestLiveStake)),
+  ].sort((a, b) => a - b);
+  const returned = new Map<SeatIndex, number>();
+  let prev = biggestLiveStake;
+  for (const level of levels) {
+    const contributors = d.seats.filter((s) => s.committedThisHand >= level);
+    // A level with no removed seat in it has none above it either.
+    if (!contributors.some((s) => d.deadHands.includes(s.index))) break;
+    for (const s of contributors) returned.set(s.index, (returned.get(s.index) ?? 0) + level - prev);
+    prev = level;
+  }
+  for (const [seatIndex, amount] of returned) {
+    const seat = must(d.seats[seatIndex], 'seat');
+    seat.committedThisHand -= amount;
+    seat.committedThisStreet = Math.max(0, seat.committedThisStreet - amount);
+    seat.stack += amount;
+    events.push({ t: 'betReturned', seat: seatIndex, amount: c(amount) });
+  }
+}
+
 /** The current betting round is over. Form pots, then either deal the next street
  *  (running out the board when fewer than two seats can still wager) or show down. */
 function completeStreet(d: Draft, events: Event[]): void {
+  returnUnmatchedChips(d, events);
   d.pots = buildPots(d);
   events.push({ t: 'potsFormed', pots: d.pots });
 
@@ -364,6 +405,7 @@ function showdown(d: Draft, events: Event[]): void {
 
 /** Everyone folded to one seat: award every pot to them without a showdown. */
 function foldWin(d: Draft, events: Event[]): void {
+  returnUnmatchedChips(d, events);
   d.pots = buildPots(d);
   events.push({ t: 'potsFormed', pots: d.pots });
   const winner = d.seats.find(notFolded);
@@ -448,6 +490,7 @@ export function startHand(input: {
     actingSeat: null,
     lastAggressor: null,
     noRaiseSeats: [],
+    deadHands: [],
     rules: input.rules,
   };
 
@@ -709,8 +752,10 @@ export function applyAction(state: HandState, playerAction: PlayerAction): Apply
 /** Declare a seat's hand dead, at once and out of turn — the host removed the
  *  player (HOUSE-RULES #14). Unlike a fold this does not wait for the seat's
  *  turn, and it works on an all-in seat, which cannot fold. Everything else is
- *  a fold: the chips it put in stay in the pot as dead money, any bet it made
- *  still stands for the players behind it, and it can no longer win anything.
+ *  a fold: any bet it made still stands for the players behind it (#20), and
+ *  it can no longer win anything. The chips it put in stay in the pot as far
+ *  as a live player matches them; what nobody live matches is handed back
+ *  when the street ends (#19, returnUnmatchedChips).
  *
  *  Nothing here deals or chooses a card — the deck carries on from where it
  *  was (hard rule 4). */
@@ -726,6 +771,7 @@ export function killHand(state: HandState, seatIndex: SeatIndex): ApplyResult {
   seat.status = 'folded';
   seat.hasActedThisStreet = true;
   d.noRaiseSeats = d.noRaiseSeats.filter((i) => i !== seatIndex);
+  d.deadHands.push(seatIndex);
   const events: Event[] = [{ t: 'handKilled', seat: seatIndex }];
 
   if (d.seats.filter(notFolded).length === 1) {

@@ -156,6 +156,11 @@ export class Table {
   /** Tokens of players the host removed. They cannot rejoin with them until
    *  the server restarts (HOUSE-RULES #14) — deliberately not a lasting ban. */
   private readonly barredTokens: string[] = [];
+  /** Removals waiting for the hand to end, because the host was in it (#18). */
+  private readonly pendingRemovals = new Set<string>();
+  /** Seats removed during the hand being played, and who sat there: chips
+   *  handed back to them later in the hand leave the table with them (#19). */
+  private readonly removedThisHand = new Map<number, string>();
 
   constructor(
     config: TableConfig,
@@ -456,21 +461,55 @@ export class Table {
 
   // ------------------------------------------------------------- host powers
 
-  /** Remove a player (HOUSE-RULES #14). Their live hand is dead at once and
-   *  their chips in the pot stay there; the rest of their stack leaves the
-   *  table, in the public chip log; their connection closes; their token is
-   *  barred until the server restarts. */
+  /** Remove a player (HOUSE-RULES #14). If the host is still in the hand
+   *  with them, it waits until the hand ends (#18); otherwise it is at once. */
   private kick(host: Player, targetId: string): ServerMessage | null {
     if (!host.isHost) return err('hostOnly', 'Only the host can remove a player.');
     if (targetId === host.playerId) return err('notYourself', 'You cannot remove yourself.');
     const target = this.players.get(targetId);
     if (!target) return err('unknownPlayer', 'That player has already left.');
 
-    const seatIndex = this.seatOf(targetId);
+    // #18: the host may not remove an opponent from a pot the host is still
+    // playing — heads-up that would win it without a call. The player plays
+    // the hand out like anyone else and is removed the moment it ends.
+    if (this.holdsLiveCards(host) && this.holdsLiveCards(target)) {
+      this.pendingRemovals.add(targetId);
+      this.broadcast();
+      return null;
+    }
+    this.removePlayer(target);
+    return null;
+  }
+
+  /** Still holding cards in the hand being played. */
+  private holdsLiveCards(player: Player): boolean {
+    if (!this.handInProgress() || !this.hand) return false;
+    const seatIndex = this.seatOf(player.playerId);
+    const handSeat = seatIndex === -1 ? undefined : this.hand.seats[seatIndex];
+    return handSeat?.playerId === player.playerId && stillInHand(handSeat.status);
+  }
+
+  /** Carry out a removal: kill a live hand, take the rest of the stack off
+   *  the table in the public chip log, close the connection, bar the token. */
+  private removePlayer(target: Player): void {
+    this.pendingRemovals.delete(target.playerId);
+    const seatIndex = this.seatOf(target.playerId);
     const handSeat = seatIndex === -1 ? undefined : this.hand?.seats[seatIndex];
     const dealtIn =
-      this.handInProgress() && handSeat !== undefined && handSeat.playerId === targetId &&
+      this.handInProgress() &&
+      handSeat !== undefined &&
+      handSeat.playerId === target.playerId &&
       handSeat.holeCards.length > 0;
+    // While their hand is running, the hand holds their stack; the table's
+    // copy is only written back when it ends — and it will not be, because
+    // the seat is about to be empty. Read it BEFORE the kill: anything the
+    // kill hands back (#19) arrives as betReturned and is logged on its own.
+    const remaining = dealtIn && handSeat ? handSeat.stack : (this.stacks[seatIndex] ?? 0);
+
+    if (dealtIn) {
+      // Chips this seat gets back later in the hand (#19) leave with them.
+      this.removedThisHand.set(seatIndex, target.name);
+    }
 
     // Not "when the action reaches them", and not on a clock: a removed
     // player is not coming back to act. All-in included — killHand, unlike a
@@ -480,18 +519,14 @@ export class Table {
       // else is no reason to hand them a fresh 45 seconds.
       const clock = { actingSeat: this.hand.actingSeat, deadline: this.actionDeadline };
       const result = killHand(this.hand, seatIndex);
-      if (!result.ok) return err(result.reason, 'Could not remove that hand.');
-      this.handActions.push({ seat: seatIndex, action: 'removed by host' });
-      this.hand = result.state;
-      this.afterEngineStep(result.events, clock);
+      if (result.ok) {
+        this.handActions.push({ seat: seatIndex, action: 'removed by host' });
+        this.hand = result.state;
+        this.afterEngineStep(result.events, clock);
+      }
     }
 
     if (seatIndex !== -1) {
-      // While their hand is running, the hand holds their stack; the table's
-      // copy is only written back when it ends — and it will not be, because
-      // the seat is about to be empty.
-      const live = this.handInProgress() && dealtIn ? this.hand?.seats[seatIndex] : undefined;
-      const remaining = live ? live.stack : (this.stacks[seatIndex] ?? 0);
       this.seats[seatIndex] = null;
       this.stacks[seatIndex] = 0;
       // Logged even at zero (an all-in player has nothing left behind), so the
@@ -502,12 +537,11 @@ export class Table {
     this.barredTokens.push(target.token);
     // Gone from the table before the socket closes, so the close is not
     // mistaken for a dropped connection.
-    this.players.delete(targetId);
+    this.players.delete(target.playerId);
     target.send(err('kicked', 'The host removed you from this table.'));
     target.close();
     this.maybeScheduleNextHand();
     this.broadcast();
-    return null;
   }
 
   /** Pause or resume dealing (HOUSE-RULES #15). A hand already running plays
@@ -570,6 +604,7 @@ export class Table {
     this.pendingShows.clear();
     this.handActions = [];
     this.revealedSeed = null;
+    this.removedThisHand.clear();
 
     // Advance the button to the next seat that is actually dealt in.
     this.button = this.nextEligibleSeat(this.handNumber === 1 ? MAX_SEATS - 1 : this.button);
@@ -799,6 +834,13 @@ export class Table {
       if (e.t === 'showdown') {
         for (const reveal of e.reveals) this.showdownSeats.add(reveal.seat);
       }
+      // HOUSE-RULES #19: a removed player's unmatched chips come back to their
+      // seat in the hand — but the seat is already empty, so they leave the
+      // table with them. Same entry, same log, as the rest of their stack.
+      if (e.t === 'betReturned') {
+        const removed = this.removedThisHand.get(e.seat);
+        if (removed !== undefined) this.logChips(removed, -e.amount, 'removed by host (unmatched bet)');
+      }
     }
 
     this.sendToAll({
@@ -888,6 +930,12 @@ export class Table {
     for (const player of this.players.values()) {
       const stillAway = player.sitOutAfterHand || (!player.connected && player.seatState === 'in');
       if (stillAway && this.seatOf(player.playerId) !== -1) this.setSittingOut(player);
+    }
+    // Removals the host asked for while both were in this hand (#18).
+    for (const playerId of [...this.pendingRemovals]) {
+      const target = this.players.get(playerId);
+      if (target) this.removePlayer(target);
+      else this.pendingRemovals.delete(playerId);
     }
     this.maybeScheduleNextHand();
   }
@@ -1068,6 +1116,7 @@ export class Table {
           seat: seat === -1 ? null : seat,
           connected: p.connected,
           isHost: p.isHost,
+          removeAfterHand: this.pendingRemovals.has(p.playerId),
         };
       }),
       fairness: {
@@ -1194,6 +1243,8 @@ function redactEvent(e: Event): HandEvent {
       };
     case 'handKilled':
       return { t: e.t, seat: e.seat };
+    case 'betReturned':
+      return { t: e.t, seat: e.seat, amount: e.amount };
     case 'handComplete':
       return { t: e.t };
     default:

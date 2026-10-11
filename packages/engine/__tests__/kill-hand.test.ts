@@ -1,7 +1,8 @@
-// killHand: the host removed a player mid-hand (HOUSE-RULES #14). Their hand is
-// dead at once — not when the action reaches them, and not on a clock — and
-// every chip they already put in stays in the pot. Everything else carries on
-// exactly as if they had folded.
+// killHand: the host removed a player mid-hand (HOUSE-RULES #14, #19, #20).
+// Their hand is dead at once — not when the action reaches them, and not on a
+// clock — and the hand carries on exactly as if they had folded: their bet
+// still has to be called. What nobody still holding cards ever matches goes
+// back to whoever put it in (#19), so nobody wins more than they risked.
 //
 // The property tests replay the same random hands as property.test.ts, but
 // kill a random live seat at a random moment, and hold the usual invariants:
@@ -79,29 +80,91 @@ describe('killHand — examples', () => {
     expect(legal.callAmount).toBe(9); // small blind already has 1 in
   });
 
-  test('killing everyone but one ends the hand and the last seat takes every pot', () => {
+  test('killing everyone but one ends the hand; the part of the raise nobody called goes back (#19)', () => {
     const { state } = newHand({ stacks: [100, 100], button: 0 });
-    // Heads-up: button (seat 0) is the small blind and acts first.
+    // Heads-up: button (seat 0) is the small blind and raises to 20. Seat 1
+    // has only its big blind (2) in when seat 0 is removed.
     const raised = act(state, { kind: 'raise', to: chips(20) });
     const { state: after, events } = kill(raised, 0);
     expect(after.street).toBe('complete');
-    // Seat 1 wins everything in the middle, including the part of the raise
-    // nobody called — it was in the pot, and it stays there.
-    expect(after.seats[1]?.stack).toBe(120);
-    expect(after.seats[0]?.stack).toBe(80);
-    expect(events.some((e) => e.t === 'potAwarded' && e.seat === 1)).toBe(true);
+    // Seat 1 wins what it matched: 2 from seat 0. The other 18 nobody called,
+    // so it goes back to seat 0 — and leaves the table with them.
+    expect(events).toContainEqual({ t: 'betReturned', seat: 0, amount: 18 });
+    expect(after.seats[1]?.stack).toBe(102);
+    expect(after.seats[0]?.stack).toBe(98);
+    expect(total(after)).toBe(200);
   });
 
-  test('when every chip in the middle is from dead hands, the seats still in play for it', () => {
-    // 4-handed, button 0: blinds on 1 and 2, seat 3 to act. Kill the blinds
-    // and seat 3 — the button has put nothing in, and wins the 3 chips.
-    // Found by the property test below: this used to throw.
+  test('Kevin’s case: a short all-in wins only what it matched; the folder and the removed player get the rest back', () => {
+    // HOUSE-RULES #19, decided 11 Oct 2026. Button 0, blinds 1/2.
+    // X (seat 0) is all-in for 20 pre-flop; Y (seat 1) and Z (seat 2) call.
+    // Flop: Y bets 30, Z raises to 100 and is removed; Y folds to Z's bet.
+    // Nobody still holding cards matched anything above X's 20, so:
+    //   X wins 60 — 20 from each of the three, never more than X risked;
+    //   Y gets its 30 back; Z gets its 100 back, which leaves with Z.
+    const { state } = newHand({ stacks: [20, 200, 200], button: 0 });
+    let s = act(state, { kind: 'allIn' }); // X
+    s = act(s, { kind: 'call' }); // Y
+    s = act(s, { kind: 'call' }); // Z (big blind)
+    expect(s.street).toBe('flop');
+    expect(s.actingSeat).toBe(1);
+    s = act(s, { kind: 'bet', to: chips(30) }); // Y
+    s = act(s, { kind: 'raise', to: chips(100) }); // Z
+    const killed = kill(s, 2);
+    expect(killed.state.actingSeat).toBe(1); // Y still faces Z's bet (#20)
+    expect(legalActions(killed.state, 1).callAmount).toBe(70);
+    const folded = applyAction(killed.state, { seat: 1, action: { kind: 'fold' } });
+    if (!folded.ok) throw new Error(folded.reason);
+    const done = folded.state;
+    expect(done.street).toBe('complete');
+    expect(folded.events).toContainEqual({ t: 'betReturned', seat: 1, amount: 30 });
+    expect(folded.events).toContainEqual({ t: 'betReturned', seat: 2, amount: 100 });
+    expect(done.seats[0]?.stack).toBe(60);
+    expect(done.seats[1]?.stack).toBe(180);
+    expect(done.seats[2]?.stack).toBe(180);
+  });
+
+  test('a removed bet that IS called stays in the pot (#20)', () => {
+    // Same start, but Y calls Z's 100 instead of folding. A call is a match:
+    // nothing goes back, and Y — the only live seat in that side pot — wins it.
+    const { state } = newHand({ stacks: [20, 200, 200], button: 0 });
+    let s = act(state, { kind: 'allIn' });
+    s = act(s, { kind: 'call' });
+    s = act(s, { kind: 'call' });
+    s = act(s, { kind: 'bet', to: chips(30) });
+    s = act(s, { kind: 'raise', to: chips(100) });
+    let after = kill(s, 2).state;
+    const events: Event[] = [];
+    while (after.street !== 'complete') {
+      const legal = legalActions(after, after.actingSeat ?? -1);
+      const result = applyAction(after, {
+        seat: after.actingSeat ?? -1,
+        action: legal.canCheck ? { kind: 'check' } : { kind: 'call' },
+      });
+      if (!result.ok) throw new Error(result.reason);
+      after = result.state;
+      events.push(...result.events);
+    }
+    expect(events.some((e) => e.t === 'betReturned')).toBe(false);
+    // Z's 120 is all in the pot; Y won at least the side pot of Z's money.
+    expect(after.seats[2]?.stack).toBe(80);
+    expect(total(after)).toBe(420);
+  });
+
+  test('when every chip in the middle is from removed hands, it all goes back and nobody wins it', () => {
+    // 4-handed, button 0: blinds on 1 and 2, seat 3 to act. Remove the blinds
+    // and seat 3. The button has put nothing in, so it wins nothing; the
+    // blinds go back to the removed players (#19). This used to throw, then
+    // used to hand the button 3 chips it never risked.
     const { state } = newHand({ stacks: [100, 100, 100, 100], button: 0 });
     let s = kill(state, 1).state;
     s = kill(s, 2).state;
-    const { state: done } = kill(s, 3);
+    const { state: done, events } = kill(s, 3);
     expect(done.street).toBe('complete');
-    expect(done.seats[0]?.stack).toBe(103);
+    expect(done.seats[0]?.stack).toBe(100);
+    expect(done.seats[1]?.stack).toBe(100);
+    expect(done.seats[2]?.stack).toBe(100);
+    expect(events).toContainEqual({ t: 'betReturned', seat: 2, amount: 2 });
     expect(total(done)).toBe(400);
   });
 
@@ -251,6 +314,13 @@ type Played = {
   stackWhenKilled: Map<number, number>;
 };
 
+/** Chips handed back to each seat over the hand (betReturned events). */
+function returnedBySeat(events: readonly Event[]): Map<number, number> {
+  const out = new Map<number, number>();
+  for (const e of events) if (e.t === 'betReturned') out.set(e.seat, (out.get(e.seat) ?? 0) + e.amount);
+  return out;
+}
+
 function playWithKills(sc: KillScenario): Played {
   const seats = sc.stacks.map((stack, i) => seatRow(i, stack));
   const start = startHand({
@@ -321,16 +391,54 @@ describe(`killHand property-based invariants (${RUNS} random hands)`, () => {
     );
   });
 
-  test('property: no stack goes negative, and a killed seat never gets a chip back', () => {
+  test('property: no stack or commitment goes negative, and a killed seat gets back only its own unmatched chips', () => {
     fc.assert(
       fc.property(arbitraryKillScenario, (sc) => {
-        const { states, killed, stackWhenKilled } = playWithKills(sc);
+        const { states, events, killed, stackWhenKilled } = playWithKills(sc);
         const final = states[states.length - 1] as HandState;
         for (const state of states) {
-          for (const seat of state.seats) expect(seat.stack).toBeGreaterThanOrEqual(0);
+          for (const seat of state.seats) {
+            expect(seat.stack).toBeGreaterThanOrEqual(0);
+            expect(seat.committedThisHand).toBeGreaterThanOrEqual(0);
+          }
         }
+        const returned = returnedBySeat(events);
         for (const seat of killed) {
-          expect(final.seats[seat]?.stack).toBe(stackWhenKilled.get(seat));
+          // Never a pot — only what it put in that nobody live matched.
+          expect(final.seats[seat]?.stack).toBe(
+            (stackWhenKilled.get(seat) ?? 0) + (returned.get(seat) ?? 0),
+          );
+        }
+      }),
+      { numRuns: Math.ceil(RUNS / 2) },
+    );
+  });
+
+  test('property: after a kill, nobody wins chips that no live player matched (#19)', () => {
+    // At the end of the hand, no seat may have more in the pot than the
+    // largest stake of a seat still holding cards: anything above that was
+    // matched by nobody who could win it, and went back to whoever put it in.
+    // (These hands have no antes; dead antes are ordinary dead money.)
+    fc.assert(
+      fc.property(arbitraryKillScenario, (sc) => {
+        const { states, initialStacks } = playWithKills(sc);
+        const final = states[states.length - 1] as HandState;
+        const live = final.seats.filter((s) => s.holeCards.length === 2 && s.status !== 'folded');
+        // finishHand relabels a broke seat 'busted'; the kill marked it dead.
+        const stillIn = live.filter((s) => !final.deadHands.includes(s.index));
+        const biggestLiveStake = Math.max(0, ...stillIn.map((s) => s.committedThisHand));
+        for (const seat of final.seats) {
+          expect(seat.committedThisHand).toBeLessThanOrEqual(biggestLiveStake);
+        }
+        // And the corollary Kevin asked for: a winner's profit is bounded by
+        // what it risked against each opponent.
+        for (const seat of stillIn) {
+          const start = initialStacks[seat.index] ?? 0;
+          const opponents = final.seats.filter((o) => o.index !== seat.index && o.holeCards.length === 2);
+          const maxWin = opponents.reduce((sum, o) => sum + Math.min(o.committedThisHand, seat.committedThisHand), 0);
+          expect(seat.stack - (start - seat.committedThisHand)).toBeLessThanOrEqual(
+            seat.committedThisHand + maxWin,
+          );
         }
       }),
       { numRuns: Math.ceil(RUNS / 2) },

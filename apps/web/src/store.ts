@@ -164,6 +164,15 @@ export const useStore = create<Store>((set, get) => ({
               at: Date.now(),
             });
           }
+          if (e.t === 'betReturned' && e.seat !== undefined && e.amount !== undefined) {
+            lines.push({
+              kind: 'dealer',
+              from: 'dealer',
+              seat: null,
+              text: `seat ${e.seat + 1} gets ${e.amount} back — nobody still in the hand matched it`,
+              at: Date.now(),
+            });
+          }
           if (e.t === 'streetDealt' && e.cards) {
             lines.push({
               kind: 'dealer',

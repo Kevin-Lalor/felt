@@ -284,6 +284,9 @@ export const tableViewSchema = z.object({
       seat: z.number().int().nullable(),
       connected: z.boolean(),
       isHost: z.boolean(),
+      /** The host asked to remove them while both were in the hand; it
+       *  happens when the hand ends (HOUSE-RULES #18). */
+      removeAfterHand: z.boolean(),
     }),
   ),
 });

@@ -105,7 +105,8 @@ describes. Also missing, and all of them are states where layouts break:
 - [x] **A player disconnected or sitting out** — built 20 Sep 2026 with no frame to work from. The seat plate goes dashed and dims to the folded opacity with `SITTING OUT` / `WAITING FOR BB` in place of the stack; the controls live in the action bar (`AwayControls` in `ActionBar.tsx`) because that is where your hand is while a hand you are not in is running. Layout invented, tokens obeyed — **worth a frame if the table is ever revisited**
 - [x] **Host controls (remove a player, pause dealing)** — built 11 Oct 2026 with no frame to
       work from. A **Host** tab in the rail, shown only to the host, lists the players with a
-      Remove button behind a confirm that spells out the Access allowlist; a pause toggle sits at
+      Remove button behind a confirm that spells out the Access allowlist (a removal waiting for the
+      hand to end, HOUSE-RULES #18, reads *Leaving after this hand*); a pause toggle sits at
       the top of the same tab, and "Paused by host" shows in the felt centre for everyone. Layout
       invented, tokens obeyed — **worth a frame**
 - [ ] Tournament *in play* — blind clock, level, next level, players remaining. 1i is the setup

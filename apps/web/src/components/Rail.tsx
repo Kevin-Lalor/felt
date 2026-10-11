@@ -339,9 +339,13 @@ function HostTab() {
             {p.name} · {p.seat === null ? 'rail' : `seat ${p.seat + 1}`}
             {p.connected ? '' : ' · away'}
           </span>{' '}
-          <button className="pill" onClick={() => setRemoving({ playerId: p.playerId, name: p.name })}>
-            Remove
-          </button>
+          {p.removeAfterHand ? (
+            <span className="pill pill--warn">Leaving after this hand</span>
+          ) : (
+            <button className="pill" onClick={() => setRemoving({ playerId: p.playerId, name: p.name })}>
+              Remove
+            </button>
+          )}
         </p>
       ))}
 
@@ -351,8 +355,9 @@ function HostTab() {
             <h2 className="modal__title">Remove {removing.name}?</h2>
             <p className="rail__note">
               If they are in a hand, it is folded now, and the chips they have already put in stay
-              in the pot. The rest of their stack leaves the table, and the chip log shows it as
-              removed by host.
+              in the pot — except any that nobody still in the hand has called, which go back to
+              them. Their stack leaves the table, and the chip log shows it as removed by host.
+              If you are both still in the hand, they are removed when it ends instead.
             </p>
             <p className="rail__note">
               <strong>This is not a ban.</strong> It only stops this device rejoining until the
