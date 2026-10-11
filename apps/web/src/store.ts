@@ -140,6 +140,15 @@ export const useStore = create<Store>((set, get) => ({
               at: Date.now(),
             });
           }
+          if (e.t === 'handKilled' && e.seat !== undefined) {
+            lines.push({
+              kind: 'dealer',
+              from: 'dealer',
+              seat: null,
+              text: `seat ${e.seat + 1} was removed by the host — that hand is dead`,
+              at: Date.now(),
+            });
+          }
           if (e.t === 'streetDealt' && e.cards) {
             lines.push({
               kind: 'dealer',

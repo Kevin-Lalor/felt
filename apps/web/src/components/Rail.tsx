@@ -3,14 +3,16 @@ import { EMOTES } from '@poker/protocol';
 import { send } from '../socket';
 import { useStore } from '../store';
 
-type Tab = 'chat' | 'log' | 'fair' | 'hands';
+type Tab = 'chat' | 'log' | 'fair' | 'hands' | 'host';
 
 type HistoryHand = {
   handId?: string;
   handNumber: number;
   at: string;
   board: string[];
-  seats: { seat: number; name: string; holeCards: string[]; stackAfter: number }[];
+  /** Each card is null when it was mucked (HOUSE-RULES #16) — the server never
+   *  sends it, so there is nothing here to hide. */
+  seats: { seat: number; name: string; holeCards: (string | null)[]; stackAfter: number }[];
   commit: string;
   serverSeed: string;
 };
@@ -45,6 +47,16 @@ function speaker(from: string, seat: number | null): string {
 export function Rail() {
   const [tab, setTab] = useState<Tab>('chat');
   const [open, setOpen] = useState(false); // mobile sheet toggle
+  const isHost = useStore((s) => s.isHost);
+  const tabs: (readonly [Tab, string])[] = [
+    ['chat', 'Chat'],
+    ['log', 'Chips'],
+    ['fair', 'Fair'],
+    ['hands', 'Hands'],
+    // Light host (HOUSE-RULES #13): remove and pause, nothing more. No
+    // wireframe covers this tab; see docs/design/WIREFRAMES.md.
+    ...(isHost ? [['host', 'Host'] as const] : []),
+  ];
 
   return (
     <>
@@ -53,14 +65,7 @@ export function Rail() {
       </button>
       <aside className={`rail${open ? ' rail--open' : ''}`}>
         <nav className="rail__tabs">
-          {(
-            [
-              ['chat', 'Chat'],
-              ['log', 'Chips'],
-              ['fair', 'Fair'],
-              ['hands', 'Hands'],
-            ] as const
-          ).map(([key, label]) => (
+          {tabs.map(([key, label]) => (
             <button
               key={key}
               className={`rail__tab${tab === key ? ' rail__tab--on' : ''}`}
@@ -74,6 +79,7 @@ export function Rail() {
         {tab === 'log' && <ChipLogTab />}
         {tab === 'fair' && <FairTab />}
         {tab === 'hands' && <HandsTab />}
+        {tab === 'host' && isHost && <HostTab />}
       </aside>
     </>
   );
@@ -264,8 +270,8 @@ function HandsTab() {
   return (
     <div className="rail__body rail__body--scroll">
       <p className="rail__note">
-        Full hand histories — hole cards included — become public the moment a hand ends.
-        Transparency is the product.
+        Every finished hand, with every card that was shown down or shown by choice. Mucked hands
+        stay hidden.
       </p>
       {error && <p className="chat__dealer">Could not load history.</p>}
       {hands.length === 0 && !error && <p className="chat__dealer">No hands yet.</p>}
@@ -277,11 +283,88 @@ function HandsTab() {
           </p>
           {hand.seats.map((s) => (
             <p key={s.seat} className="chat__dealer">
-              {s.name}: {s.holeCards.join(' ')} → {s.stackAfter}
+              {s.name}: {shownCards(s.holeCards)} → {s.stackAfter}
             </p>
           ))}
         </div>
       ))}
+    </div>
+  );
+}
+
+/** "As Kd", "As ··" for one card shown, or "mucked". */
+function shownCards(cards: (string | null)[]): string {
+  if (cards.every((c) => c === null)) return 'mucked';
+  return cards.map((c) => c ?? '··').join(' ');
+}
+
+/** Light host (HOUSE-RULES #13–#15): pause dealing, remove a player. */
+function HostTab() {
+  const view = useStore((s) => s.view);
+  const me = useStore((s) => s.playerId);
+  const [removing, setRemoving] = useState<{ playerId: string; name: string } | null>(null);
+  if (!view) return null;
+  const others = view.players.filter((p) => p.playerId !== me);
+
+  return (
+    <div className="rail__body rail__body--scroll">
+      <p className="rail__mono">DEALING</p>
+      <button
+        className="btn btn--small"
+        onClick={() => send({ type: 'setPaused', paused: !view.paused })}
+      >
+        {view.paused ? 'Resume dealing' : 'Pause dealing'}
+      </button>
+      <p className="rail__note">
+        {view.paused
+          ? 'Paused. No new hand is dealt until you resume. Chat and sitting out still work.'
+          : 'Pausing lets the hand in progress finish on its normal clocks, then deals nothing until you resume.'}
+      </p>
+
+      <p className="rail__mono">PLAYERS</p>
+      {others.length === 0 && <p className="chat__dealer">Nobody else is here yet.</p>}
+      {others.map((p) => (
+        <p key={p.playerId} className="chat__line">
+          <span className="chat__from">
+            {p.name} · {p.seat === null ? 'rail' : `seat ${p.seat + 1}`}
+            {p.connected ? '' : ' · away'}
+          </span>{' '}
+          <button className="pill" onClick={() => setRemoving({ playerId: p.playerId, name: p.name })}>
+            Remove
+          </button>
+        </p>
+      ))}
+
+      {removing && (
+        <div className="modalScrim" onClick={() => setRemoving(null)}>
+          <div className="modal" onClick={(e) => e.stopPropagation()}>
+            <h2 className="modal__title">Remove {removing.name}?</h2>
+            <p className="rail__note">
+              If they are in a hand, it is folded now, and the chips they have already put in stay
+              in the pot. The rest of their stack leaves the table, and the chip log shows it as
+              removed by host.
+            </p>
+            <p className="rail__note">
+              <strong>This is not a ban.</strong> It only stops this device rejoining until the
+              server restarts, and they can join again as a new player with the invite code. To
+              keep them out, remove their email from the Cloudflare Access allowlist, and change
+              the invite code if they might have it.
+            </p>
+            <button
+              className="btn btn--accent"
+              onClick={() => {
+                send({ type: 'kick', playerId: removing.playerId });
+                setRemoving(null);
+              }}
+            >
+              Remove {removing.name}
+            </button>
+            <button className="btn btn--ghost" onClick={() => setRemoving(null)}>
+              Keep them
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

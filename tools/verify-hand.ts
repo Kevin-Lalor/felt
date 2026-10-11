@@ -25,9 +25,14 @@ type HandRecord = {
   /** Positional since the seat-order fix; older records keyed seeds by name. */
   clientSeeds: ClientSeedRecord[] | Record<string, string>;
   button: number;
-  seats: { seat: number; name: string; holeCards: string[] }[];
+  /** A card is null where the seat mucked (HOUSE-RULES #16): the public
+   *  history never contains it. The server's own file has every card. */
+  seats: { seat: number; name: string; holeCards: (string | null)[] }[];
   board: string[];
 };
+
+/** Cards shown after the hand, appended to the file as their own lines. */
+type ShowLine = { show: { handId: string; seat: number; cards: (string | null)[] } };
 
 const MAX_SEATS = 9;
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
@@ -84,10 +89,12 @@ if (!handArg) {
 const here = fileURLToPath(new URL('.', import.meta.url));
 const file = fileArg ?? join(dirname(here), 'apps', 'server', 'data', 'history.jsonl');
 
-const records = readFileSync(file, 'utf8')
+const lines = readFileSync(file, 'utf8')
   .split('\n')
   .filter((l) => l.trim())
-  .map((l) => JSON.parse(l) as HandRecord);
+  .map((l) => JSON.parse(l) as HandRecord | ShowLine);
+const records = lines.filter((l): l is HandRecord => !('show' in l));
+const shows = lines.filter((l): l is ShowLine => 'show' in l).map((l) => l.show);
 const matches = records.filter((r) => r.handId === handArg || r.handNumber === Number(handArg));
 const record = matches[matches.length - 1];
 if (!record) {
@@ -167,12 +174,29 @@ for (let round = 0; round < 2; round++) {
 }
 const board = deck.slice(pointer, pointer + record.board.length);
 
+// Only the cards that were shown are checked. The deck itself never depended
+// on them — the seeds and the seats dealt in decide it — so a mucked hand
+// costs the check nothing but those two cards. Shows made after the hand are
+// separate lines in a server's own file; merge them in by position.
+let mucked = 0;
 for (const seat of record.seats) {
-  const derived = dealt.get(seat.seat)?.join(' ') ?? '(none)';
+  const derived = dealt.get(seat.seat) ?? [];
+  const recorded = [0, 1].map((i) => {
+    const shown = shows.find(
+      (s) => s.handId === record.handId && s.seat === seat.seat && s.cards[i],
+    );
+    return seat.holeCards[i] ?? shown?.cards[i] ?? null;
+  });
+  if (recorded.every((c) => c === null)) {
+    mucked += 1;
+    console.log(`  ·  ${seat.name} (seat ${seat.seat}) mucked — cards not shown`);
+    continue;
+  }
+  const matches = recorded.every((card, i) => card === null || card === derived[i]);
   check(
-    `${seat.name} (seat ${seat.seat}) was dealt ${seat.holeCards.join(' ')}`,
-    derived === seat.holeCards.join(' '),
-    derived === seat.holeCards.join(' ') ? '' : `derivation says ${derived}`,
+    `${seat.name} (seat ${seat.seat}) was dealt ${recorded.map((c) => c ?? '··').join(' ')}`,
+    matches,
+    matches ? '' : `derivation says ${derived.map((c, i) => (recorded[i] === null ? '··' : c)).join(' ')}`,
   );
 }
 check(
@@ -185,6 +209,7 @@ console.log(
   failed
     ? '\n✗ VERIFICATION FAILED — this hand does not match its commitment. Ask your host hard questions.\n'
     : `\n✓ Hand verified. The revealed seed matches the published commitment and re-derives\n` +
-        `  exactly these cards.\n  Seeds: ${seedNote}.\n`,
+        `  exactly these cards.\n  Seeds: ${seedNote}.\n` +
+        (mucked > 0 ? `  ${mucked} seat(s) mucked, so their cards were not checked.\n` : ''),
 );
 process.exit(failed ? 1 : 0);

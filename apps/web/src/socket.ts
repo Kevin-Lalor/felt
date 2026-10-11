@@ -14,6 +14,7 @@ const JOIN_REFUSALS = new Set([
   'badName',
   'tooManyConnections',
   'tooManyPlayers',
+  'kicked',
 ]);
 
 function wsUrl(): string {
@@ -65,7 +66,11 @@ function open(): void {
     // A refused join must not be retried automatically. Reconnecting with the
     // same wrong code every few seconds would burn through the server's
     // wrong-code allowance and lock out everyone on this network.
-    if (parsed.type === 'error' && JOIN_REFUSALS.has(parsed.code)) joinPayload = null;
+    if (parsed.type === 'error' && JOIN_REFUSALS.has(parsed.code)) {
+      joinPayload = null;
+      // Removed by the host: back to the join screen, which shows why.
+      if (parsed.code === 'kicked') useStore.getState().reset();
+    }
     rotateSeedIfNeeded();
     announceSkinOnce(parsed);
   };

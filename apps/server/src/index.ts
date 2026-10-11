@@ -46,6 +46,7 @@ const table = new Table(
     maxBuyIn: Number(process.env['MAX_BUYIN'] ?? 400),
   },
   (record) => history.append(record),
+  (show) => history.appendShow(show),
 );
 
 const maxConnections = Number(process.env['MAX_CONNECTIONS_PER_IP'] ?? 8);

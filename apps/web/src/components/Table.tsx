@@ -211,6 +211,7 @@ export function Table() {
         {view.handNumber > 0 && <span className="pill pill--quiet">Hand #{view.handNumber}</span>}
         <span className="topbar__spacer" />
         {!connected && <span className="pill pill--warn">reconnecting…</span>}
+        {view.paused && <span className="pill pill--warn">Paused by host</span>}
         {seated && heroSeat && (
           <span className="topbar__stack">
             STACK {heroSeat.stack.toLocaleString()}
@@ -276,7 +277,12 @@ export function Table() {
                     </div>
                   )}
                   {view.street === 'complete' && (
-                    <p className="felt__waiting-small">NEXT HAND IS COMING…</p>
+                    <p className="felt__waiting-small">
+                      {view.paused ? 'PAUSED BY HOST' : 'NEXT HAND IS COMING…'}
+                    </p>
+                  )}
+                  {view.paused && view.street !== 'complete' && (
+                    <p className="felt__waiting-small">PAUSED BY HOST · THIS HAND PLAYS OUT</p>
                   )}
                 </>
               )}

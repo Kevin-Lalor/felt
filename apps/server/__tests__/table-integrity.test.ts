@@ -25,6 +25,7 @@ import { clientMessageSchema } from '@poker/protocol';
 import type { HandRecord } from '../src/history.js';
 import type { TableConfig } from '../src/table.js';
 import { Table } from '../src/table.js';
+import { publicHandRecord } from '../src/redact.js';
 
 const REPO_ROOT = fileURLToPath(new URL('../../../', import.meta.url));
 
@@ -355,6 +356,71 @@ describe('verifiability — a record survives a rename and re-derives offline', 
     });
     expect(output).toContain('Hand verified');
     expect(output).not.toContain('FAILED');
+  }, 60_000);
+
+  test('tools/verify-hand.ts verifies the PUBLIC record, with mucked hands left out', () => {
+    // HOUSE-RULES #16: what players can download has no mucked cards. The
+    // verifier rebuilds the deck from the seeds and the seats dealt in, so it
+    // must still pass — checking the board and every card that WAS shown.
+    const h = new Harness();
+    const ann = h.seat('Ann', 0, 200, true);
+    h.seat('Bob', 1);
+    h.seat('Cat', 2);
+    h.table.handle(ann.id, { type: 'startHand' } as ClientMessage);
+    h.foldToTheEnd();
+    const [record] = h.records;
+    if (!record) throw new Error('no record');
+    const winner = record.seats.find((s) => s.finalStatus !== 'folded');
+    if (!winner) throw new Error('no winner');
+
+    const dir = mkdtempSync(join(tmpdir(), 'felt-verify-'));
+    const file = join(dir, 'public.jsonl');
+    // The public record (everything mucked), plus a show line for one card —
+    // the shape of a server file after the winner shows one.
+    const lines = [
+      JSON.stringify(publicHandRecord(record)),
+      JSON.stringify({
+        show: { handId: record.handId, seat: winner.seat, cards: [winner.holeCards[0], null] },
+      }),
+    ];
+    writeFileSync(file, lines.join('\n') + '\n', 'utf8');
+    const output = execSync(`npx tsx tools/verify-hand.ts ${record.handId} "${file}"`, {
+      cwd: REPO_ROOT,
+      encoding: 'utf8',
+      stdio: 'pipe',
+    });
+    expect(output).toContain('Hand verified');
+    expect(output).toContain('mucked');
+    expect(output).toContain(`${winner.holeCards[0]} ··`);
+    // The verifier names no card that was not shown.
+    for (const seat of record.seats) {
+      for (const card of seat.holeCards) {
+        // As a whole word: the hand id is hex, and "8c" can occur inside it.
+        if (card !== winner.holeCards[0]) expect(output).not.toMatch(new RegExp(`(^|\\s)${card}(\\s|$)`, 'm'));
+      }
+    }
+
+    // And a lie is still caught: claim the shown card was a different one.
+    const wrong = record.seats.flatMap((s) => s.holeCards).find((c) => c !== winner.holeCards[0]);
+    writeFileSync(
+      file,
+      [
+        JSON.stringify(publicHandRecord(record)),
+        JSON.stringify({ show: { handId: record.handId, seat: winner.seat, cards: [wrong, null] } }),
+      ].join('\n') + '\n',
+      'utf8',
+    );
+    let failed = '';
+    try {
+      execSync(`npx tsx tools/verify-hand.ts ${record.handId} "${file}"`, {
+        cwd: REPO_ROOT,
+        encoding: 'utf8',
+        stdio: 'pipe',
+      });
+    } catch (error) {
+      failed = String((error as { stdout: string }).stdout);
+    }
+    expect(failed).toContain('FAILED');
   }, 60_000);
 });
 
