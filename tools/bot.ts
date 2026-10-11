@@ -4,7 +4,7 @@
 //
 //   pnpm bot Mo                        (joins, sits, plays)
 //   pnpm bot Dec --style tight
-//   pnpm bot Ana --url ws://localhost:8090/ws --code FELT01 --buyin 400
+//   pnpm bot Ana --url ws://localhost:8090/ws --code YOURINVITECODE --buyin 400
 //
 // It is an ordinary client: it speaks the same protocol, gets the same redacted
 // view as a person, and sees nobody else's hole cards. It has no special access
@@ -70,7 +70,7 @@ const STYLE = flag('style', 'normal'); // tight | normal | loose
 
 if (!CODE) {
   console.error(
-    'No invite code. Pass --code ABC123, or set INVITE_CODE before starting\n' +
+    'No invite code. Pass --code <invite code>, or set INVITE_CODE before starting\n' +
       'the server so both ends agree. The server prints the code at startup.',
   );
   process.exit(2);

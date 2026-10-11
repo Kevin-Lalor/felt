@@ -13,12 +13,52 @@ export type WireCard = z.infer<typeof cardSchema>;
  *  gets the chance to refuse it politely. */
 export const chipsSchema = z.number().int().nonnegative().max(1_000_000_000);
 
+/** Canonical form of a player name. Applied by the schema on the way in, so
+ *  every name the server ever stores or compares has been through it.
+ *
+ *  NFKC folds compatibility look-alikes (fullwidth Ｋ, ligatures, the
+ *  superscript ª) onto their plain letters and composes "Sea" + combining acute
+ *  into one "á", so "Seán" typed on two different keyboards is one name. iPhones
+ *  type a curly apostrophe by default, so O’Brien becomes O'Brien rather than
+ *  being refused. Runs of whitespace collapse to one space. */
+export function normaliseName(raw: string): string {
+  return raw
+    .normalize('NFKC')
+    .replace(/[\u2018\u2019\u02BC]/g, "'")
+    .replace(/\s+/g, ' ')
+    .trim();
+}
+
+/** Letters must be LATIN — accented ones included, so Seán, Aoife, Zoë and
+ *  Björn all work. Other scripts are refused because they hold look-alikes: a
+ *  Cyrillic і makes "Kevіn" render exactly like "Kevin", and at a table where
+ *  names are how you know who you are playing, that is impersonation. Digits
+ *  are ASCII only for the same reason (other scripts have their own digits). */
+const NAME_CHARACTERS = /^(?:(?=\p{Script=Latin})\p{L}|[0-9 _\-'.])+$/u;
+const NAME_HAS_LETTER_OR_DIGIT = /(?:(?=\p{Script=Latin})\p{L}|[0-9])/u;
+
+export const NAME_RULES_MESSAGE =
+  "Names can use letters (accents are fine), digits, spaces and . - ' _ — up to 16 characters.";
+
 export const playerNameSchema = z
   .string()
-  .trim()
-  .min(1)
-  .max(16)
-  .regex(/^[\p{L}\p{N} _\-'.]+$/u, 'name contains unsupported characters');
+  .max(64)
+  .transform(normaliseName)
+  .pipe(
+    z
+      .string()
+      .min(1)
+      .max(16)
+      .regex(NAME_CHARACTERS, NAME_RULES_MESSAGE)
+      .regex(NAME_HAS_LETTER_OR_DIGIT, NAME_RULES_MESSAGE),
+  );
+
+/** Quick reactions. A fixed list, so an emote can never be used as a second,
+ *  unmoderated chat channel or as a way to put arbitrary text on everyone's
+ *  screen. Adding one is a protocol change, on purpose. */
+export const EMOTES = ['nh', 'ty', 'gg', 'wow', 'lol', '🥶'] as const;
+export const emoteSchema = z.enum(EMOTES);
+export type Emote = z.infer<typeof emoteSchema>;
 
 export const actionSchema = z.discriminatedUnion('kind', [
   z.object({ kind: z.literal('fold') }),
@@ -98,10 +138,12 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('leave') }),
   /** Rebuy/top-up between hands. Publicly logged for the whole table. */
   z.object({ type: z.literal('topUp'), amount: chipsSchema }),
+  /** Host only. The first hand always; after that the server deals on its own
+   *  between hands, and the host may deal early. Nobody else can. */
   z.object({ type: z.literal('startHand') }),
   z.object({ type: z.literal('action'), handNumber: z.number().int().positive(), action: actionSchema }),
   z.object({ type: z.literal('chat'), text: z.string().trim().min(1).max(300) }),
-  z.object({ type: z.literal('emote'), emote: z.string().min(1).max(16) }),
+  z.object({ type: z.literal('emote'), emote: emoteSchema }),
   z.object({ type: z.literal('setClientSeed'), seed: z.string().min(1).max(64) }),
   /** Change your own cosmetics. Everyone at the table sees the result. */
   z.object({ type: z.literal('setSkin'), skin: playerSkinSchema }),
@@ -267,7 +309,7 @@ export const serverMessageSchema = z.discriminatedUnion('type', [
     type: z.literal('emote'),
     from: z.string(),
     seat: z.number().int().nullable(),
-    emote: z.string(),
+    emote: emoteSchema,
     at: z.number(),
   }),
   z.object({

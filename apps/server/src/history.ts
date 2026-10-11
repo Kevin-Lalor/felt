@@ -1,9 +1,17 @@
 // Hand histories: full transparency, append-only JSONL, public to every player
 // after the hand ends. This file plus the revealed seeds is everything a
 // suspicious friend needs to verify any hand ever dealt (tools/verify-hand.ts).
+//
+// Reads are served from memory. The file used to be read and parsed in full,
+// synchronously, on every request — so the bigger the history grew, the longer
+// each Hands-tab refresh froze the table for everyone. Now it is streamed once
+// at startup, the most recent hands are kept in memory, and every new hand is
+// appended to both. Only a lookup for a hand older than that window touches
+// the disk again, and it streams rather than blocking.
 
-import { appendFileSync, existsSync, mkdirSync, readFileSync } from 'node:fs';
+import { appendFileSync, createReadStream, existsSync, mkdirSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createInterface } from 'node:readline';
 
 /** Seeds are recorded positionally. The old shape was `Record<name, seed>`,
  *  which broke verification the moment a player renamed on reconnect. */
@@ -33,32 +41,85 @@ export type HandRecord = {
   pots: { amount: number; eligibleSeats: number[] }[];
 };
 
+/** How many hands stay in memory. The API serves at most 200; the rest of the
+ *  window keeps a lookup by id for anything from the last few nights cheap. */
+const MEMORY_WINDOW = 2_000;
+
 export class HandHistory {
+  private recentHands: HandRecord[] = [];
+  private loaded = false;
+
   constructor(private readonly file: string) {
     mkdirSync(dirname(file), { recursive: true });
   }
 
-  append(record: HandRecord): void {
-    appendFileSync(this.file, JSON.stringify(record) + '\n', 'utf8');
+  /** Stream the file once, keeping the most recent hands. Call before serving. */
+  async load(): Promise<void> {
+    const recent: HandRecord[] = [];
+    await this.scan((record) => {
+      recent.push(record);
+      if (recent.length > MEMORY_WINDOW) recent.shift();
+      return false;
+    });
+    // Hands appended while the file was streaming are already in memory.
+    this.recentHands = [...recent, ...this.recentHands].slice(-MEMORY_WINDOW);
+    this.loaded = true;
   }
 
-  readAll(): HandRecord[] {
-    if (!existsSync(this.file)) return [];
-    return readFileSync(this.file, 'utf8')
-      .split('\n')
-      .filter((line) => line.trim().length > 0)
-      .map((line) => JSON.parse(line) as HandRecord);
+  append(record: HandRecord): void {
+    appendFileSync(this.file, JSON.stringify(record) + '\n', 'utf8');
+    this.recentHands.push(record);
+    if (this.recentHands.length > MEMORY_WINDOW) this.recentHands.shift();
+  }
+
+  /** The last `count` hands, oldest first. */
+  recent(count: number): HandRecord[] {
+    return this.recentHands.slice(-count);
   }
 
   /** Look up by stable handId, or by handNumber for convenience. handNumber can
    *  repeat across server restarts, so the MOST RECENT match wins. */
-  find(idOrNumber: string): HandRecord | undefined {
-    const all = this.readAll();
-    const byId = all.find((r) => r.handId === idOrNumber);
-    if (byId) return byId;
+  async find(idOrNumber: string): Promise<HandRecord | undefined> {
+    const inMemory = findIn(this.recentHands, idOrNumber);
+    if (inMemory || !this.loaded) return inMemory;
+    // Older than the memory window: stream the file rather than load it.
     const n = Number(idOrNumber);
-    if (!Number.isFinite(n)) return undefined;
-    const matches = all.filter((r) => r.handNumber === n);
-    return matches[matches.length - 1];
+    let match: HandRecord | undefined;
+    await this.scan((record) => {
+      if (record.handId === idOrNumber) {
+        match = record;
+        return true;
+      }
+      if (Number.isFinite(n) && record.handNumber === n) match = record;
+      return false;
+    });
+    return match;
   }
+
+  /** Visit every record in file order; the visitor returns true to stop. */
+  private async scan(visit: (record: HandRecord) => boolean): Promise<void> {
+    if (!existsSync(this.file)) return;
+    const lines = createInterface({
+      input: createReadStream(this.file, 'utf8'),
+      crlfDelay: Infinity,
+    });
+    for await (const line of lines) {
+      if (line.trim().length === 0) continue;
+      if (visit(JSON.parse(line) as HandRecord)) {
+        lines.close();
+        break;
+      }
+    }
+  }
+}
+
+function findIn(records: readonly HandRecord[], idOrNumber: string): HandRecord | undefined {
+  const byId = records.find((r) => r.handId === idOrNumber);
+  if (byId) return byId;
+  const n = Number(idOrNumber);
+  if (!Number.isFinite(n)) return undefined;
+  for (let i = records.length - 1; i >= 0; i--) {
+    if (records[i]?.handNumber === n) return records[i];
+  }
+  return undefined;
 }

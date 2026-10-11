@@ -215,14 +215,20 @@ export class Table {
     return CHIP_COLOUR_ROTATION.find((c) => !taken.has(c)) ?? (CHIP_COLOUR_ROTATION[0] as ChipColour);
   }
 
+  /** Names are unique ignoring case: "kevin" next to "Kevin" is the same name
+   *  to anyone reading the chat. The name has already been NFKC-normalised and
+   *  restricted to Latin script by the protocol, so case is the last way two
+   *  different strings can read as one. */
   private uniqueName(name: string, exceptPlayerId?: string): string {
     const taken = new Set(
-      [...this.players.values()].filter((p) => p.playerId !== exceptPlayerId).map((p) => p.name),
+      [...this.players.values()]
+        .filter((p) => p.playerId !== exceptPlayerId)
+        .map((p) => nameKey(p.name)),
     );
-    if (!taken.has(name)) return name;
+    if (!taken.has(nameKey(name))) return name;
     for (let i = 2; ; i++) {
       const candidate = `${name.slice(0, 13)} ${i}`;
-      if (!taken.has(candidate)) return candidate;
+      if (!taken.has(nameKey(candidate))) return candidate;
     }
   }
 
@@ -414,11 +420,18 @@ export class Table {
     return null;
   }
 
+  /** Only the host deals by hand. The first hand waits for them; after that
+   *  the server deals on its own once the between-hands pause has run, and the
+   *  host may cut it short. Anyone else sending startHand used to skip the
+   *  pause — and with it the window to show cards, top up or sit out. */
   private requestStartHand(player: Player): ServerMessage | null {
-    if (this.handInProgress()) return err('inHand', 'A hand is already running.');
-    if (!player.isHost && this.handNumber === 0) {
-      return err('hostOnly', 'The host starts the first hand.');
+    if (!player.isHost) {
+      return err(
+        'hostOnly',
+        this.handNumber === 0 ? 'The host starts the first hand.' : 'The next hand deals itself.',
+      );
     }
+    if (this.handInProgress()) return err('inHand', 'A hand is already running.');
     return this.startNextHand();
   }
 
@@ -955,6 +968,16 @@ export class Table {
   getPlayer(playerId: string): Player | undefined {
     return this.players.get(playerId);
   }
+
+  /** Seat index for chat attribution, or null for someone on the rail. */
+  seatNumberOf(playerId: string): number | null {
+    const seat = this.seatOf(playerId);
+    return seat === -1 ? null : seat;
+  }
+}
+
+function nameKey(name: string): string {
+  return name.toLowerCase();
 }
 
 /** Seats whose cards are still live. Folded seats may leave; all-in ones may not. */
