@@ -251,9 +251,14 @@ export class Table {
     }
   }
 
-  disconnect(playerId: string): void {
+  /** A connection closed. `send` identifies which one: a player who has
+   *  already reconnected on a new socket is NOT disconnected when the old one
+   *  finally closes — and with the heartbeat, a dead socket is terminated up to
+   *  a minute after the phone that owned it has rejoined on another network. */
+  disconnect(playerId: string, send?: (msg: ServerMessage) => void): void {
     const player = this.players.get(playerId);
     if (!player) return;
+    if (send !== undefined && player.send !== send) return;
     player.connected = false;
     // Seat and chips are kept — the player can reclaim them with their token.
     //

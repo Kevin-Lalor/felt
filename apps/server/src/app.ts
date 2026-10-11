@@ -43,6 +43,8 @@ export type AppOptions = {
   maxPlayersPerClient?: number;
   /** How long a socket may stay open without joining. */
   joinTimeoutMs?: number;
+  /** How often the server pings every socket. One missed answer and it goes. */
+  heartbeatMs?: number;
 };
 
 /** The history API serves the same window it always has. */
@@ -93,6 +95,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const connections = new ConnectionCounter(options.maxConnectionsPerClient ?? 8);
   const joinTimeoutMs = options.joinTimeoutMs ?? 10_000;
   const maxPlayersPerClient = options.maxPlayersPerClient ?? 4;
+  const heartbeatMs = options.heartbeatMs ?? 25_000;
   /** Which players each address has created, to enforce the cap above. */
   const playersByClient = new Map<string, Set<string>>();
 
@@ -243,6 +246,24 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     };
   });
 
+  // ------------------------------------------------------------ heartbeat
+
+  // Cloudflare closes a WebSocket that carries nothing for about 100 seconds,
+  // and a table between hands, or a player thinking, can be that quiet. And a
+  // phone that drops off wifi often leaves a socket that never says it closed,
+  // so the server would wait for a player who is not there. Every 25 seconds
+  // the server pings each socket — browsers answer pings on their own, no app
+  // code involved — and any socket that has not answered the previous ping is
+  // terminated. That close goes down the ordinary disconnect path, so a player
+  // holding cards keeps their clock and everyone else is sat out (HOUSE-RULES
+  // #8, #9). A silent connection is found within 25–50 seconds.
+  const heartbeats = new Set<() => void>();
+  const heartbeatTimer = setInterval(() => {
+    for (const beat of heartbeats) beat();
+  }, heartbeatMs);
+  heartbeatTimer.unref();
+  app.addHook('onClose', async () => clearInterval(heartbeatTimer));
+
   // ------------------------------------------------------------ the table
 
   app.register(async (scope) => {
@@ -268,12 +289,27 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       // Every message, of any kind, draws on one budget per connection.
       const budget = new Buckets();
 
+      let answered = true;
+      socket.on('pong', () => {
+        answered = true;
+      });
+      const beat = (): void => {
+        if (!answered) {
+          socket.terminate();
+          return;
+        }
+        answered = false;
+        socket.ping();
+      };
+      heartbeats.add(beat);
+
       // A socket that never joins is holding a slot for nothing.
       const joinTimer = setTimeout(() => {
         if (playerId === null) refuse('joinTimeout', 'Join with the invite code first.');
       }, joinTimeoutMs);
 
       socket.on('message', (raw: Buffer | string) => {
+        answered = true; // anything from the client proves it is there
         if (!budget.take('all', CONNECTION_RATE)) {
           refuse('flooding', 'Too many messages. Reconnect to carry on.');
           return;
@@ -406,12 +442,15 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       });
 
       socket.on('close', () => {
+        heartbeats.delete(beat);
         clearTimeout(joinTimer);
         if (counted) {
           counted = false;
           connections.close(client);
         }
-        if (playerId !== null) table.disconnect(playerId);
+        // `send` names this socket: if the player has already rejoined on
+        // another one, this close is old news and changes nothing.
+        if (playerId !== null) table.disconnect(playerId, send);
       });
     });
   });
