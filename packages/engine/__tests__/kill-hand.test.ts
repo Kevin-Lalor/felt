@@ -124,6 +124,57 @@ describe('killHand — examples', () => {
     expect(done.seats[2]?.stack).toBe(180);
   });
 
+  test('#19 covers every unmatched chip in the hand, not only the removed player’s: a folded ante and blind go back too', () => {
+    // Found by the review of the first #19 build, which only handed back chips
+    // at levels the removed player had reached. Blinds 5/10, ante 5 each,
+    // button 0. B (seat 2) has 1 chip and is all-in on the ante. U (seat 0)
+    // is removed with its ante in; S (seat 1, small blind) folds. B risked 1,
+    // so B wins 1 from each of the others — 3 — and everything else goes back.
+    const blinds = { smallBlind: chips(5), bigBlind: chips(10), ante: chips(5), anteType: 'perPlayer' as const };
+    const { state } = newHand({ stacks: [200, 200, 1], button: 0, blinds });
+    expect(state.actingSeat).toBe(0);
+    let s = kill(state, 0).state;
+    const folded = applyAction(s, { seat: s.actingSeat ?? -1, action: { kind: 'fold' } });
+    if (!folded.ok) throw new Error(folded.reason);
+    s = folded.state;
+    expect(s.street).toBe('complete');
+    expect(s.seats[2]?.stack).toBe(3);
+    expect(s.seats[1]?.stack).toBe(199);
+    expect(s.seats[0]?.stack).toBe(199);
+    expect(folded.events).toContainEqual({ t: 'betReturned', seat: 1, amount: 9 });
+    expect(folded.events).toContainEqual({ t: 'betReturned', seat: 0, amount: 4 });
+  });
+
+  test('#19 is worked out when the hand ends: a later live bet matches an earlier folder’s chips, so they stay in', () => {
+    // Blinds 1/2 with a big-blind ante of 5, button 0: the big blind (seat 2)
+    // has 7 in. Seat 3 is removed before acting; seat 0 raises to 4, seat 1
+    // calls, and the big blind folds with 7 in — more than either live player
+    // at that moment. On the flop they bet 10 and call, so the live stakes
+    // pass 7: every chip the big blind put in IS matched, and none goes back.
+    // Handing chips back at the end of each street would have returned 3.
+    const blinds = { smallBlind: chips(1), bigBlind: chips(2), ante: chips(5), anteType: 'bigBlindAnte' as const };
+    const { state } = newHand({ stacks: [100, 100, 100, 100], button: 0, blinds });
+    expect(state.seats[2]?.committedThisHand).toBe(7);
+    expect(state.actingSeat).toBe(3);
+    let s = kill(state, 3).state;
+    const events: Event[] = [];
+    const step = (action: Action) => {
+      const result = applyAction(s, { seat: s.actingSeat ?? -1, action });
+      if (!result.ok) throw new Error(result.reason);
+      s = result.state;
+      events.push(...result.events);
+    };
+    step({ kind: 'raise', to: chips(4) }); // seat 0
+    step({ kind: 'call' }); // seat 1
+    step({ kind: 'fold' }); // seat 2, the big blind, with 7 in
+    expect(s.street).toBe('flop');
+    step({ kind: 'bet', to: chips(10) }); // seat 1
+    step({ kind: 'call' }); // seat 0
+    while (s.street !== 'complete') step({ kind: 'check' });
+    expect(events.some((e) => e.t === 'betReturned')).toBe(false);
+    expect(total(s)).toBe(400);
+  });
+
   test('a removed bet that IS called stays in the pot (#20)', () => {
     // Same start, but Y calls Z's 100 instead of folding. A call is a match:
     // nothing goes back, and Y — the only live seat in that side pot — wins it.
@@ -267,6 +318,11 @@ type KillScenario = {
   stacks: number[];
   button: number;
   seed: number;
+  /** Antes and returning players' dead posts: chips that are in the pot
+   *  without being anyone's bet — exactly what #19 has to get right. */
+  ante: 0 | 1 | 2;
+  anteType: 'none' | 'perPlayer' | 'bigBlindAnte';
+  postSeats: number[];
   /** Each entry: after this many actions, kill the n-th live seat (mod count). */
   kills: { afterActions: number; pick: number }[];
 };
@@ -278,6 +334,11 @@ const arbitraryKillScenario = fc.record({
   }),
   button: fc.nat(8),
   seed: fc.integer({ min: 1, max: 2 ** 30 }),
+  ante: fc.constantFrom(0, 1, 2) as fc.Arbitrary<0 | 1 | 2>,
+  anteType: fc.constantFrom('none', 'perPlayer', 'bigBlindAnte') as fc.Arbitrary<
+    'none' | 'perPlayer' | 'bigBlindAnte'
+  >,
+  postSeats: fc.array(fc.nat(8), { maxLength: 3 }),
   kills: fc.array(fc.record({ afterActions: fc.nat(20), pick: fc.nat(8) }), {
     minLength: 1,
     maxLength: 4,
@@ -322,15 +383,26 @@ function returnedBySeat(events: readonly Event[]): Map<number, number> {
 }
 
 function playWithKills(sc: KillScenario): Played {
-  const seats = sc.stacks.map((stack, i) => seatRow(i, stack));
-  const start = startHand({
-    seats,
+  const deal = {
+    seats: sc.stacks.map((stack, i) => seatRow(i, stack)),
     button: sc.button % sc.stacks.length,
-    blinds: BLINDS_1_2,
+    blinds: {
+      ...BLINDS_1_2,
+      ante: chips(sc.ante),
+      anteType: sc.ante === 0 ? ('none' as const) : sc.anteType,
+    },
     deck: testShuffle(sc.seed),
     handNumber: 1,
     rules: DEFAULT_RULES,
-  });
+  };
+  // As in property.test.ts: only the big blind may not also post, and which
+  // seat that is comes off the engine's own handStarted event.
+  const opening = startHand(deal).events.find((e) => e.t === 'handStarted');
+  if (!opening || opening.t !== 'handStarted') throw new Error('no handStarted event');
+  const posts = [...new Set(sc.postSeats)]
+    .filter((seat) => seat < sc.stacks.length && seat !== opening.bigBlindSeat)
+    .map((seat) => ({ seat, amount: chips(2) }));
+  const start = startHand({ ...deal, seats: sc.stacks.map((stack, i) => seatRow(i, stack)), posts });
   const rng = testRng(sc.seed);
   const states: HandState[] = [start.state];
   const events: Event[] = [...start.events];
@@ -417,11 +489,15 @@ describe(`killHand property-based invariants (${RUNS} random hands)`, () => {
   test('property: after a kill, nobody wins chips that no live player matched (#19)', () => {
     // At the end of the hand, no seat may have more in the pot than the
     // largest stake of a seat still holding cards: anything above that was
-    // matched by nobody who could win it, and went back to whoever put it in.
-    // (These hands have no antes; dead antes are ordinary dead money.)
+    // matched by nobody who could win it, and went back to whoever put it in —
+    // antes and dead posts included, in a hand with a removal.
     fc.assert(
       fc.property(arbitraryKillScenario, (sc) => {
-        const { states, initialStacks } = playWithKills(sc);
+        const { states, initialStacks, killed } = playWithKills(sc);
+        // A hand can end before its scheduled removal. Then nobody was removed,
+        // and a folded ante is ordinary dead money that rightly goes to the
+        // winner — #19 has nothing to say about it.
+        if (killed.size === 0) return;
         const final = states[states.length - 1] as HandState;
         const live = final.seats.filter((s) => s.holeCards.length === 2 && s.status !== 'folded');
         // finishHand relabels a broke seat 'busted'; the kill marked it dead.

@@ -231,6 +231,51 @@ describe('removing a player (HOUSE-RULES #14)', () => {
     expect(room.view().seats[0]!.stack + room.removedTotal()).toBe(400); // non-null: Kev is seated
   });
 
+  test('a second host session cannot remove an opponent from a pot the seated host is playing (#18)', () => {
+    // Review finding: the host code works on any number of devices. Kevin
+    // seated on his phone and on the rail on his laptop could remove Ann from
+    // the phone's pot via the laptop, and win it without a showdown.
+    const room = new Room();
+    room.join('Kev', 0, 200, true);
+    room.join('KevLaptop', null, 200, true);
+    const ann = room.join('Ann', 1);
+    room.do('Kev', { type: 'startHand' });
+    room.act(room.actingName(), { kind: 'raise', to: 50 });
+    room.act(room.actingName(), { kind: 'call' });
+    expect(room.view().street).toBe('flop');
+    expect(room.do('KevLaptop', { type: 'kick', playerId: ann.id })).toBeNull();
+    expect(room.table.handInProgress()).toBe(true);
+    expect(room.view().seats[1]?.hasCards).toBe(true);
+    expect(room.view().players.find((p) => p.playerId === ann.id)?.removeAfterHand).toBe(true);
+  });
+
+  test.each(['leave', 'standUp'] as const)(
+    'a player waiting to be removed who folds and then tries to %s is removed there and then',
+    (how) => {
+      // Review finding: folding and leaving before the hand ended skipped the
+      // public "removed by host" entry and the token bar entirely.
+      const room = new Room();
+      room.join('Kev', 0, 200, true);
+      const ann = room.join('Ann', 1);
+      room.join('Bob', 2);
+      room.do('Kev', { type: 'startHand' });
+      room.do('Kev', { type: 'kick', playerId: ann.id });
+      expect(room.view().players.find((p) => p.playerId === ann.id)?.removeAfterHand).toBe(true);
+      // Play until it is Ann's turn, then she folds.
+      for (let guard = 0; guard < 10 && room.actingName() !== 'Ann'; guard++) {
+        const name = room.actingName();
+        room.act(name, room.view(name).legal?.canCheck ? { kind: 'check' } : { kind: 'call' });
+      }
+      room.act('Ann', { kind: 'fold' });
+      expect(room.table.handInProgress()).toBe(true);
+      expect(room.do('Ann', { type: how })).toBeNull();
+      expect(room.table.getPlayer(ann.id)).toBeUndefined();
+      expect(ann.closed).toBe(true);
+      expect(room.table.isTokenBarred(ann.token)).toBe(true);
+      expect(room.table.chipLog.some((e) => e.playerName === 'Ann' && e.reason === 'removed by host')).toBe(true);
+    },
+  );
+
   test('host not in the pot: removed at once, and the raise nobody called goes back with them (#19)', () => {
     // Host on the button folds; Ann raises to 20 into Bob's big blind; the host
     // removes Ann. Bob matched only 2 of her 20, so 18 goes back to Ann — and

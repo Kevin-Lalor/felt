@@ -30,7 +30,7 @@ Format: decision, date, and one line of reasoning. Append; don't rewrite history
 | 16 | Mucked hands | Hand history — the API and the Hands tab — shows hole cards **only** for seats that reached showdown, and for cards a player chose to show (one or both). Folded and mucked hands stay hidden | 2026-10-11 |
 | 17 | Rebuys | **Not decided.** Current behaviour stands: a seated player tops up between hands, up to the table maximum, logged publicly. Who approves rebuys is on the list below | 2026-10-11 |
 | 18 | Removing a player the host is in a pot with | If the host still holds cards in the same hand as the player being removed, the removal **waits until the hand ends**: the player plays it out normally and is removed the moment it is over. Otherwise #14 applies at once | 2026-10-11 |
-| 19 | A removed player's unmatched chips | In a hand where a player was removed, chips that **no player still holding cards has matched** go back to whoever put them in. The removed player's share leaves the table with their stack (chip log: *removed by host*); anyone else's — say, a player who folded to the removed player's bet — goes back to their own stack. A short stack can never win more from anyone than it put in itself. Hands with nobody removed are unchanged: ordinary dead money, such as a folded big-blind ante, still goes to the winner | 2026-10-11 |
+| 19 | A removed player's unmatched chips | In a hand where a player was removed, chips that **no player still holding cards has matched** go back to whoever put them in. The removed player's share leaves the table with their stack (chip log: *removed by host*); anyone else's — a player who folded to the removed player's bet, or a folded ante, blind or dead post — goes back to their own stack. It is worked out **when the hand ends**, so a live bet on a later street still matches chips put in earlier. A short stack can never win more from anyone than it put in itself. Hands with nobody removed are unchanged: ordinary dead money, such as a folded big-blind ante, still goes to the winner | 2026-10-11 |
 | 20 | A removed player's bet still stands | The hand carries on as if they had folded: the players behind still have to **call their bet or fold**. A call is a match, so that money stays in the pot | 2026-10-11 |
 
 ## To decide before launch
@@ -82,11 +82,18 @@ capped by rule 10 — after that one clock they are out, and the table never wai
 
 ## Notes on rules 13-17
 
+**Who counts as "the host" for #18.** Anyone who joined with the host code. The code works on
+any number of devices, and the server cannot tell Kevin's laptop on the rail from Kevin seated on
+his phone, so a removal waits while *any* host-code player still holds cards in the hand with the
+target. If someone else ever holds the host code as a co-host, the same applies to them. And a
+player waiting to be removed who folds and then leaves or stands up is removed there and then —
+publicly, token barred — rather than slipping out before the hand ends.
+
 **How #14 and #18–#20 play out.** A removed hand is killed out of turn, all-in included, and from
 then on the hand plays exactly as if that seat had folded: the action stays with whoever was on the
 clock (on the same clock), and a bet the removed player made still has to be called (#20). When the
-street ends, anything nobody still holding cards matched goes back to whoever put it in (#19) —
-the removed player's share leaves with them. When removing someone leaves nobody else able to bet,
+hand ends, anything nobody still holding cards matched goes back to whoever put it in (#19) — the
+removed player's share leaves with them. When removing someone leaves nobody else able to bet,
 the board runs out. A removed seat is never shown down, and the showdown then starts with the first
 live seat left of the button.
 

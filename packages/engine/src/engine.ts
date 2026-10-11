@@ -273,45 +273,39 @@ const NEXT_STREET: Partial<Record<Street, Street>> = {
 const STREET_CARDS: Partial<Record<Street, number>> = { flop: 3, turn: 1, river: 1 };
 
 /** HOUSE-RULES #19 (11 Oct 2026). In a hand where the host removed someone,
- *  nobody may win chips that nobody still holding cards has matched: a short
- *  all-in player wins at most what they risked from each opponent. So every
- *  contribution level that no live seat reached, and that a removed seat put
- *  chips into, goes back to whoever put chips in at that level — the removed
- *  player's share leaves the table with them; a folder's share is theirs again.
+ *  nobody may win chips that no player still holding cards has matched: a
+ *  short all-in player wins at most what they risked from each opponent. So
+ *  every chip above the biggest stake of a seat still in the hand goes back to
+ *  whoever put it in — the removed player's share leaves the table with them;
+ *  a folder's share, an ante or a dead post included, is theirs again.
  *
- *  Levels nobody live reached are always the TOP levels (contributors at a
- *  higher level are a subset of those below), and without a removed seat they
- *  are ordinary dead money — a folded big-blind ante — which still goes to
- *  the winner as it always has. That is why this does nothing in a hand
- *  where nobody was removed. */
-function returnUnmatchedChips(d: Draft, events: Event[]): void {
-  if (d.deadHands.length === 0) return;
+ *  Worked out when the hand ENDS (a fold win, or the showdown), never at the
+ *  end of a street: a live player betting on a later street matches chips an
+ *  earlier folder put in, and those must stay in.
+ *
+ *  Chips above every live stake are ordinary dead money in a hand with no
+ *  removal — a folded big-blind ante — and still go to the winner as they
+ *  always have. That is why this does nothing unless someone was removed.
+ *  Returns whether anything was handed back. */
+function returnUnmatchedChips(d: Draft, events: Event[]): boolean {
+  if (d.deadHands.length === 0) return false;
   const biggestLiveStake = Math.max(0, ...d.seats.filter(notFolded).map((s) => s.committedThisHand));
-  const levels = [
-    ...new Set(d.seats.map((s) => s.committedThisHand).filter((v) => v > biggestLiveStake)),
-  ].sort((a, b) => a - b);
-  const returned = new Map<SeatIndex, number>();
-  let prev = biggestLiveStake;
-  for (const level of levels) {
-    const contributors = d.seats.filter((s) => s.committedThisHand >= level);
-    // A level with no removed seat in it has none above it either.
-    if (!contributors.some((s) => d.deadHands.includes(s.index))) break;
-    for (const s of contributors) returned.set(s.index, (returned.get(s.index) ?? 0) + level - prev);
-    prev = level;
+  let any = false;
+  for (const seat of d.seats) {
+    const unmatched = seat.committedThisHand - biggestLiveStake;
+    if (unmatched <= 0) continue;
+    seat.committedThisHand -= unmatched;
+    seat.committedThisStreet = Math.max(0, seat.committedThisStreet - unmatched);
+    seat.stack += unmatched;
+    events.push({ t: 'betReturned', seat: seat.index, amount: c(unmatched) });
+    any = true;
   }
-  for (const [seatIndex, amount] of returned) {
-    const seat = must(d.seats[seatIndex], 'seat');
-    seat.committedThisHand -= amount;
-    seat.committedThisStreet = Math.max(0, seat.committedThisStreet - amount);
-    seat.stack += amount;
-    events.push({ t: 'betReturned', seat: seatIndex, amount: c(amount) });
-  }
+  return any;
 }
 
 /** The current betting round is over. Form pots, then either deal the next street
  *  (running out the board when fewer than two seats can still wager) or show down. */
 function completeStreet(d: Draft, events: Event[]): void {
-  returnUnmatchedChips(d, events);
   d.pots = buildPots(d);
   events.push({ t: 'potsFormed', pots: d.pots });
 
@@ -350,6 +344,12 @@ function showdown(d: Draft, events: Event[]): void {
   d.street = 'showdown';
   d.actingSeat = null;
   if (d.board.length !== 5) throw new EngineError(`showdown with ${d.board.length} board cards`);
+  // The hand is over: hand back what nobody live matched (#19), then re-form
+  // the pots from what is left before anyone is paid.
+  if (returnUnmatchedChips(d, events)) {
+    d.pots = buildPots(d);
+    events.push({ t: 'potsFormed', pots: d.pots });
+  }
 
   // Reveal order: last aggressor first, otherwise first seat left of the button.
   // An aggressor whose hand was killed (killHand) is not in the showdown, so
@@ -755,7 +755,7 @@ export function applyAction(state: HandState, playerAction: PlayerAction): Apply
  *  a fold: any bet it made still stands for the players behind it (#20), and
  *  it can no longer win anything. The chips it put in stay in the pot as far
  *  as a live player matches them; what nobody live matches is handed back
- *  when the street ends (#19, returnUnmatchedChips).
+ *  when the hand ends (#19, returnUnmatchedChips).
  *
  *  Nothing here deals or chooses a card — the deck carries on from where it
  *  was (hard rule 4). */

@@ -399,6 +399,7 @@ export class Table {
   private standUp(player: Player): ServerMessage | null {
     const seatIndex = this.seatOf(player.playerId);
     if (seatIndex === -1) return err('notSeated', 'You are not seated.');
+    if (this.carryOutPendingRemoval(player)) return null;
     // 'allIn' counts as still in the hand: those cards contest the pot, and
     // completeHand() only pays a seat still held by the same player, so leaving
     // while all-in silently forfeited the winnings.
@@ -413,6 +414,7 @@ export class Table {
   }
 
   private leave(player: Player): ServerMessage | null {
+    if (this.carryOutPendingRemoval(player)) return null;
     const seatIndex = this.seatOf(player.playerId);
     if (seatIndex !== -1) {
       if (this.handInProgress() && stillInHand(this.hand?.seats[seatIndex]?.status)) {
@@ -472,13 +474,31 @@ export class Table {
     // #18: the host may not remove an opponent from a pot the host is still
     // playing — heads-up that would win it without a call. The player plays
     // the hand out like anyone else and is removed the moment it ends.
-    if (this.holdsLiveCards(host) && this.holdsLiveCards(target)) {
+    // "The host" is anyone holding host powers, not just this connection:
+    // the host code works on any number of devices, and the server cannot
+    // tell Kevin's laptop on the rail from Kevin seated on his phone. Checking
+    // only the sender let the laptop remove an opponent from the phone's pot.
+    const hostInThePot = [...this.players.values()].some(
+      (p) => p.isHost && this.holdsLiveCards(p),
+    );
+    if (hostInThePot && this.holdsLiveCards(target)) {
       this.pendingRemovals.add(targetId);
       this.broadcast();
       return null;
     }
     this.removePlayer(target);
     return null;
+  }
+
+  /** A player the host is waiting to remove (#18) folds and then tries to
+   *  leave or stand up before the hand ends. Letting that through would skip
+   *  the public "removed by host" entry and the token bar. They are no longer
+   *  in the pot, so the reason to wait has gone: carry the removal out now.
+   *  Still holding cards, they cannot leave anyway (finish the hand first). */
+  private carryOutPendingRemoval(player: Player): boolean {
+    if (!this.pendingRemovals.has(player.playerId) || this.holdsLiveCards(player)) return false;
+    this.removePlayer(player);
+    return true;
   }
 
   /** Still holding cards in the hand being played. */
