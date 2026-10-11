@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
+import { EMOTES } from '@poker/protocol';
 import { send } from '../socket';
 import { useStore } from '../store';
 
@@ -14,10 +15,31 @@ type HistoryHand = {
   serverSeed: string;
 };
 
-/** The history routes are gated on the same invite code as the socket. */
-function historyUrl(): string {
+/** The history routes are gated on the same code as the socket. It travels in
+ *  a header, never the URL — a URL ends up in server logs, browser history and
+ *  Referer headers, and the code is the key to the table. */
+function fetchHistory(): Promise<Response> {
   const code = localStorage.getItem('felt.inviteCode') ?? '';
-  return `/api/history?code=${encodeURIComponent(code)}`;
+  return fetch('/api/history', { headers: { 'x-felt-code': code } });
+}
+
+/** A plain link cannot carry a header, so the download is fetched and handed
+ *  to the browser as a file. */
+async function downloadHistory(): Promise<void> {
+  const response = await fetchHistory();
+  if (!response.ok) return;
+  const url = URL.createObjectURL(await response.blob());
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = 'felt-hand-history.json';
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+/** Who said it, and where they sit — a name alone can be copied, a seat can't.
+ *  Seats are 1-based on the felt; a player not seated is on the rail. */
+function speaker(from: string, seat: number | null): string {
+  return seat === null ? `${from} · rail` : `${from} · seat ${seat + 1}`;
 }
 
 export function Rail() {
@@ -76,10 +98,12 @@ function ChatTab() {
           line.kind === 'dealer' ? (
             <p key={i} className="chat__dealer">{line.text}</p>
           ) : line.kind === 'emote' ? (
-            <p key={i} className="chat__emote">{line.from} {line.text}</p>
+            <p key={i} className="chat__emote">
+              {speaker(line.from, line.seat)} {line.text}
+            </p>
           ) : (
             <p key={i} className="chat__line">
-              <span className="chat__from">{line.from}</span>
+              <span className="chat__from">{speaker(line.from, line.seat)}</span>
               {line.text}
             </p>
           ),
@@ -87,7 +111,7 @@ function ChatTab() {
         <div ref={bottom} />
       </div>
       <div className="chat__quick">
-        {['nh', 'ty', 'wow', 'lol', '🥶'].map((q) => (
+        {EMOTES.map((q) => (
           <button key={q} className="pill" onClick={() => send({ type: 'emote', emote: q })}>
             {q}
           </button>
@@ -214,7 +238,10 @@ function FairTab() {
       </p>
       <p className="rail__note">
         To verify a finished hand offline, download{' '}
-        <a href={historyUrl()} target="_blank" rel="noreferrer">the hand history</a> and run{' '}
+        <button className="pill" onClick={() => void downloadHistory()}>
+          the hand history
+        </button>{' '}
+        and run{' '}
         <code>pnpm verify-hand &lt;handId&gt;</code> from the repo.
       </p>
     </div>
@@ -225,8 +252,11 @@ function HandsTab() {
   const [hands, setHands] = useState<HistoryHand[]>([]);
   const [error, setError] = useState(false);
   useEffect(() => {
-    fetch(historyUrl())
-      .then((r) => r.json())
+    fetchHistory()
+      .then((r) => {
+        if (!r.ok) throw new Error(String(r.status));
+        return r.json();
+      })
       .then((data: HistoryHand[]) => setHands(data.reverse()))
       .catch(() => setError(true));
   }, []);

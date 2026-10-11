@@ -1,4 +1,5 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { NAME_RULES_MESSAGE, playerNameSchema } from '@poker/protocol';
 import { connectAndJoin } from '../socket';
 import { useStore } from '../store';
 
@@ -11,10 +12,27 @@ export function Join() {
     new URLSearchParams(location.search).get('invite') ?? localStorage.getItem('felt.invite') ?? '',
   );
   const [avatar, setAvatar] = useState(Number(localStorage.getItem('felt.avatar') ?? 0));
+  const [nameProblem, setNameProblem] = useState(false);
+
+  // An invite link carries the code as ?invite=. Once it is in the box, take it
+  // out of the address bar: left there it is in the browser history, in any
+  // screenshot of the tab, and in the link someone copies to "share the game".
+  useEffect(() => {
+    const url = new URL(location.href);
+    if (!url.searchParams.has('invite')) return;
+    url.searchParams.delete('invite');
+    history.replaceState(history.state, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
 
   const ready = name.trim().length > 0 && code.trim().length > 0;
   const submit = () => {
     if (!ready) return;
+    // Same rules the server applies, checked here so the answer is instant.
+    if (!playerNameSchema.safeParse(name).success) {
+      setNameProblem(true);
+      return;
+    }
+    setNameProblem(false);
     localStorage.setItem('felt.name', name.trim());
     localStorage.setItem('felt.invite', code.trim());
     localStorage.setItem('felt.avatar', String(avatar));
@@ -39,9 +57,11 @@ export function Join() {
           className="join__input join__input--code"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="ABC123"
+          placeholder="the code your host sent"
           autoComplete="off"
-          maxLength={16}
+          autoCapitalize="characters"
+          spellCheck={false}
+          maxLength={64}
         />
 
         <label className="join__label" htmlFor="join-name">
@@ -75,7 +95,8 @@ export function Join() {
         <button className="btn btn--accent join__cta" disabled={!ready} onClick={submit}>
           Pull up a chair
         </button>
-        {lastError && <p className="join__error">{lastError.message}</p>}
+        {nameProblem && <p className="join__error">{NAME_RULES_MESSAGE}</p>}
+        {!nameProblem && lastError && <p className="join__error">{lastError.message}</p>}
       </div>
       <footer className="join__footer">PLAY CHIPS ONLY · NO CASH VALUE · PROVABLY FAIR SHUFFLE</footer>
     </div>

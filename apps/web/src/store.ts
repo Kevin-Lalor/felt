@@ -6,6 +6,8 @@ import type { Prefs } from './prefs';
 export type ChatLine = {
   kind: 'chat' | 'emote' | 'system' | 'dealer';
   from: string;
+  /** Seat of the player who spoke, or null when on the rail / the dealer. */
+  seat: number | null;
   text: string;
   at: number;
 };
@@ -70,13 +72,13 @@ export const useStore = create<Store>((set, get) => ({
         set({ view: msg.view });
         break;
       case 'chat':
-        set({ chat: [...get().chat.slice(-199), { kind: 'chat', from: msg.from, text: msg.text, at: msg.at }] });
+        set({ chat: [...get().chat.slice(-199), { kind: 'chat', from: msg.from, seat: msg.seat, text: msg.text, at: msg.at }] });
         break;
       case 'emote':
         set({
           chat: [
             ...get().chat.slice(-199),
-            { kind: 'emote', from: msg.from, text: msg.emote, at: msg.at },
+            { kind: 'emote', from: msg.from, seat: msg.seat, text: msg.emote, at: msg.at },
           ],
         });
         break;
@@ -96,6 +98,7 @@ export const useStore = create<Store>((set, get) => ({
             {
               kind: 'dealer',
               from: 'dealer',
+              seat: null,
               text: `hand #${msg.handNumber} — shuffle committed ${msg.commit.slice(0, 12)}…`,
               at: Date.now(),
             },
@@ -110,6 +113,7 @@ export const useStore = create<Store>((set, get) => ({
             {
               kind: 'dealer',
               from: 'dealer',
+              seat: null,
               text: `hand #${msg.handNumber} — server seed revealed. Verify it on the Fair tab.`,
               at: Date.now(),
             },
@@ -128,12 +132,19 @@ export const useStore = create<Store>((set, get) => ({
                 : e.action.kind === 'allIn'
                   ? 'is ALL IN'
                   : `${e.action.kind}s`;
-            lines.push({ kind: 'dealer', from: 'dealer', text: `seat ${(e.seat ?? 0) + 1} ${verb}`, at: Date.now() });
+            lines.push({
+              kind: 'dealer',
+              from: 'dealer',
+              seat: null,
+              text: `seat ${(e.seat ?? 0) + 1} ${verb}`,
+              at: Date.now(),
+            });
           }
           if (e.t === 'streetDealt' && e.cards) {
             lines.push({
               kind: 'dealer',
               from: 'dealer',
+              seat: null,
               text: `${e.street}: ${e.cards.join(' ')}`,
               at: Date.now(),
             });
@@ -143,6 +154,7 @@ export const useStore = create<Store>((set, get) => ({
             lines.push({
               kind: 'dealer',
               from: 'dealer',
+              seat: null,
               text: `seat ${e.seat + 1} wins ${e.amount}${e.label ? ` with ${e.label}` : ''}`,
               at: Date.now(),
             });

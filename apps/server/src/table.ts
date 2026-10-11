@@ -15,6 +15,7 @@ import type {
   ServerMessage,
   TableView,
 } from '@poker/protocol';
+import { nameSkeleton } from '@poker/protocol';
 import { commitOf, deriveDeck, generateServerSeed } from './fairness.js';
 import type { SeatOccupant, TableSnapshot } from './redact.js';
 import { buildView } from './redact.js';
@@ -37,6 +38,7 @@ const CHIP_COLOUR_ROTATION: readonly ChipColour[] = [
 const ACTION_CLOCK_MS = 45_000; // HOUSE-RULES: action clock (to be tuned); auto check/fold on expiry
 const NEXT_HAND_DELAY_MS = 6_500;
 const SHOW_WINDOW_MS = 8_000;
+const CHIP_LOG_KEPT = 1_000;
 
 export type Player = {
   playerId: string;
@@ -215,14 +217,20 @@ export class Table {
     return CHIP_COLOUR_ROTATION.find((c) => !taken.has(c)) ?? (CHIP_COLOUR_ROTATION[0] as ChipColour);
   }
 
+  /** Names are unique by how they LOOK: "kevin" next to "Kevin", or "AIice"
+   *  next to "Alice", is the same name to anyone reading the chat. The second
+   *  one gets a number. The protocol has already NFKC-normalised the name and
+   *  kept it to European Latin letters; nameSkeleton folds what is left. */
   private uniqueName(name: string, exceptPlayerId?: string): string {
     const taken = new Set(
-      [...this.players.values()].filter((p) => p.playerId !== exceptPlayerId).map((p) => p.name),
+      [...this.players.values()]
+        .filter((p) => p.playerId !== exceptPlayerId)
+        .map((p) => nameKey(p.name)),
     );
-    if (!taken.has(name)) return name;
+    if (!taken.has(nameKey(name))) return name;
     for (let i = 2; ; i++) {
       const candidate = `${name.slice(0, 13)} ${i}`;
-      if (!taken.has(candidate)) return candidate;
+      if (!taken.has(nameKey(candidate))) return candidate;
     }
   }
 
@@ -414,11 +422,18 @@ export class Table {
     return null;
   }
 
+  /** Only the host deals by hand. The first hand waits for them; after that
+   *  the server deals on its own once the between-hands pause has run, and the
+   *  host may cut it short. Anyone else sending startHand used to skip the
+   *  pause — and with it the window to show cards, top up or sit out. */
   private requestStartHand(player: Player): ServerMessage | null {
-    if (this.handInProgress()) return err('inHand', 'A hand is already running.');
-    if (!player.isHost && this.handNumber === 0) {
-      return err('hostOnly', 'The host starts the first hand.');
+    if (!player.isHost) {
+      return err(
+        'hostOnly',
+        this.handNumber === 0 ? 'The host starts the first hand.' : 'The next hand deals itself.',
+      );
     }
+    if (this.handInProgress()) return err('inHand', 'A hand is already running.');
     return this.startNextHand();
   }
 
@@ -866,6 +881,8 @@ export class Table {
 
   private logChips(playerName: string, delta: number, reason: string): void {
     this.chipLog.push({ at: Date.now(), playerName, delta, reason });
+    // Only the last 20 are ever sent; keep a night's worth, not forever.
+    if (this.chipLog.length > CHIP_LOG_KEPT) this.chipLog.splice(0, this.chipLog.length - CHIP_LOG_KEPT);
     this.sendToAll({ type: 'chipLog', entries: this.chipLog.slice(-20) });
   }
 
@@ -955,6 +972,30 @@ export class Table {
   getPlayer(playerId: string): Player | undefined {
     return this.players.get(playerId);
   }
+
+  /** Is this a reconnect token for a player still at the table? */
+  knowsToken(token: string): boolean {
+    for (const player of this.players.values()) {
+      if (tokensMatch(player.token, token)) return true;
+    }
+    return false;
+  }
+
+  /** Still taking up room: connected, or holding a seat while away. */
+  holdsPlace(playerId: string): boolean {
+    const player = this.players.get(playerId);
+    return player !== undefined && (player.connected || this.seatOf(playerId) !== -1);
+  }
+
+  /** Seat index for chat attribution, or null for someone on the rail. */
+  seatNumberOf(playerId: string): number | null {
+    const seat = this.seatOf(playerId);
+    return seat === -1 ? null : seat;
+  }
+}
+
+function nameKey(name: string): string {
+  return nameSkeleton(name);
 }
 
 /** Seats whose cards are still live. Folded seats may leave; all-in ones may not. */

@@ -12,6 +12,7 @@
     "test:integrity": "vitest run __tests__/table-integrity.test.ts"
   },
   "dependencies": {
+    "@fastify/helmet": "^13",
     "@fastify/static": "^8.0.1",
     "@fastify/websocket": "^11.0.1",
     "@poker/engine": "workspace:*",
