@@ -8,8 +8,8 @@ setup, the phone layout, and surviving a restart** — not poker, and not securi
 | PR | What | State |
 |---|---|---|
 | #10 `fix/security-hardening` | The four blockers from the security review, plus the should-fix list | **Merged** |
-| #11 `feat/host-kick-and-pause` | Light host (remove + pause), mucked hands hidden, house rules #13–#20 | Open, green — **merge first** |
-| `feat/heartbeat` | Server heartbeat, the Cloudflare runbook, ADR 0002, this file | Open, built on #11 — **merge second** |
+| #11 `feat/host-kick-and-pause` | Light host (remove + pause), mucked hands hidden, house rules #13–#20 | **Merged** |
+| #12 `feat/heartbeat` | Server heartbeat, the Cloudflare runbook, ADR 0002, this file | **Merged** (the PR that wrote this line) |
 
 ---
 
@@ -21,7 +21,7 @@ Two milestones, because they need different things.
 
 **One evening of your time away.** Nothing in the code blocks it.
 
-- [ ] Merge #11, then the heartbeat PR.
+- [x] Merge #11 and #12.
 - [ ] On the home computer: `git pull`, `pnpm install`, `pnpm build`.
 - [ ] Follow `docs/SECURITY-SETUP.md` top to bottom: buy the domain, create the tunnel, create
       the Access application with the friends' emails, set your own `INVITE_CODE` and `HOST_CODE`.
@@ -116,7 +116,7 @@ it was fixed before merge.
 
 ## What's next, in order
 
-1. **Merge #11, then the heartbeat PR.**
+1. ~~**Merge #11 and #12.**~~ Done 11 Oct.
 2. **Milestone 1** (above): the Cloudflare setup and a small trial. This is your evening, not a
    session.
 3. **SQLite persistence.** Table state survives a restart. This also unblocks the leaderboard,
