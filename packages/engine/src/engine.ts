@@ -238,7 +238,16 @@ function buildPots(d: Draft): Pot[] {
     }
   }
   const lastPot = pots[pots.length - 1];
-  if (!lastPot) throw new EngineError('no pot with an eligible winner — chip accounting bug');
+  if (!lastPot) {
+    // Every chip in the middle came from hands that are dead. In ordinary play
+    // that cannot happen — a seat still in the hand has always called
+    // something — but the host can kill hands (killHand), e.g. both blinds
+    // while the others have yet to act. The money stays in the pot, and the
+    // seats still holding cards play for it.
+    const live = d.seats.filter(notFolded).map((s) => s.index);
+    if (live.length === 0) throw new EngineError('no pot with an eligible winner — chip accounting bug');
+    return [{ amount: c(deadMoney), eligibleSeats: live }];
+  }
   lastPot.amount += deadMoney;
   return pots.map((p) => ({ amount: c(p.amount), eligibleSeats: p.eligibleSeats }));
 }
@@ -687,6 +696,46 @@ export function applyAction(state: HandState, playerAction: PlayerAction): Apply
     d.actingSeat = next.index;
   } else {
     completeStreet(d, events);
+  }
+  return { ok: true, state: freeze(d), events };
+}
+
+/** Declare a seat's hand dead, at once and out of turn — the host removed the
+ *  player (HOUSE-RULES #13). Unlike a fold this does not wait for the seat's
+ *  turn, and it works on an all-in seat, which cannot fold. Everything else is
+ *  a fold: the chips it put in stay in the pot as dead money, any bet it made
+ *  still stands for the players behind it, and it can no longer win anything.
+ *
+ *  Nothing here deals or chooses a card — the deck carries on from where it
+ *  was (hard rule 4). */
+export function killHand(state: HandState, seatIndex: SeatIndex): ApplyResult {
+  if (state.street === 'showdown' || state.street === 'complete') {
+    return { ok: false, reason: 'handComplete' };
+  }
+  const d = toDraft(state);
+  const seat = d.seats[seatIndex];
+  if (!seat || !notFolded(seat)) return { ok: false, reason: 'seatNotActive' };
+  if (d.actingSeat === null) throw new EngineError('live hand with nobody to act');
+
+  seat.status = 'folded';
+  seat.hasActedThisStreet = true;
+  d.noRaiseSeats = d.noRaiseSeats.filter((i) => i !== seatIndex);
+  const events: Event[] = [{ t: 'handKilled', seat: seatIndex }];
+
+  if (d.seats.filter(notFolded).length === 1) {
+    foldWin(d, events);
+    return { ok: true, state: freeze(d), events };
+  }
+
+  // The action stays where it was if that seat still has a decision to make.
+  // It may not: killing the only other seat that could bet leaves nobody to
+  // bet against, and killing the seat to act moves the action on as a fold
+  // would. Then the next seat that owes an action acts, or the street is over.
+  const acting = must(d.seats[d.actingSeat], 'acting seat');
+  if (!needsToAct(d, acting)) {
+    const next = nextSeatWhere(d, acting.index, (s) => needsToAct(d, s));
+    if (next) d.actingSeat = next.index;
+    else completeStreet(d, events);
   }
   return { ok: true, state: freeze(d), events };
 }

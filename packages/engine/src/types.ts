@@ -151,6 +151,9 @@ export type Event =
       readonly amount: Chips;
       readonly hand: HandRank | null;
     }
+  /** The host removed this seat's player mid-hand: the hand is dead, as if
+   *  folded, and every chip it put in stays in the pot (HOUSE-RULES #13). */
+  | { readonly t: 'handKilled'; readonly seat: SeatIndex }
   | { readonly t: 'handComplete' };
 
 // ---------- results ----------
