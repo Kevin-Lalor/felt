@@ -182,7 +182,8 @@ visit asks for their email and emails them a code; after that they are in for 30
 2. **End their current login.** Zero Trust → **My Team** → **Users** → find them →
    **Revoke session**. Without this, a login they already have keeps working until it expires.
 3. **Off the table, if they are on it.** In the game, Host tab → **Remove** (HOUSE-RULES #14). An
-   already-open socket is not cut by Access, so this is what closes it.
+   already-open socket is not cut by Access, so this is what closes it. If you are in a hand with
+   them, it happens when that hand ends (#18).
 
 **Change the invite code** if they might have shared it: restart the server with a new
 `INVITE_CODE`. Everyone already seated keeps playing; new joins need the new code.
