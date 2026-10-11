@@ -3,6 +3,9 @@
 //
 //   pnpm verify-hand <handId|handNumber>          (apps/server/data/history.jsonl)
 //   pnpm verify-hand <handId|handNumber> <file>   (any history JSONL you exported)
+//   ... --seat <n>   also print the cards seat n (1-9, as numbered on the felt)
+//                    was dealt by the revealed seed, so a player who folded can
+//                    check them against what they saw
 //
 // This file deliberately re-implements the derivation instead of importing the
 // server's code — an independent implementation agreeing with the server is the
@@ -81,9 +84,13 @@ function deriveDeck(serverSeed: string, clientSeeds: string[], handNumber: numbe
 
 // ---------------------------------------------------------------------------
 
-const [, , handArg, fileArg] = process.argv;
-if (!handArg) {
-  console.error('usage: pnpm verify-hand <handNumber> [historyFile]');
+const args = process.argv.slice(2);
+const seatFlag = args.indexOf('--seat');
+const seatArg = seatFlag === -1 ? undefined : args[seatFlag + 1];
+const positional = args.filter((_, i) => seatFlag === -1 || (i !== seatFlag && i !== seatFlag + 1));
+const [handArg, fileArg] = positional;
+if (!handArg || (seatFlag !== -1 && !/^[1-9]$/.test(seatArg ?? ''))) {
+  console.error('usage: pnpm verify-hand <handId|handNumber> [historyFile] [--seat 1-9]');
   process.exit(2);
 }
 const here = fileURLToPath(new URL('.', import.meta.url));
@@ -197,6 +204,19 @@ for (const seat of record.seats) {
     `${seat.name} (seat ${seat.seat}) was dealt ${recorded.map((c) => c ?? '··').join(' ')}`,
     matches,
     matches ? '' : `derivation says ${derived.map((c, i) => (recorded[i] === null ? '··' : c)).join(' ')}`,
+  );
+}
+// A mucked hand is not in the public history (HOUSE-RULES #16), but the
+// player who held it saw it. --seat prints what the revealed seed dealt that
+// seat, so they can hold the server to it. Nothing here is secret: anyone
+// with the revealed seed can derive it — the history just doesn't show it.
+if (seatArg !== undefined) {
+  const onFelt = Number(seatArg);
+  const derived = dealt.get(onFelt - 1); // records count seats from 0
+  console.log(
+    derived
+      ? `  →  by the revealed seed, seat ${onFelt} on the felt was dealt ${derived.join(' ')} — compare with the cards you saw`
+      : `  →  seat ${onFelt} on the felt was not dealt into this hand`,
   );
 }
 check(

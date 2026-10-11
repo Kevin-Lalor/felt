@@ -311,7 +311,13 @@ function showdown(d: Draft, events: Event[]): void {
   if (d.board.length !== 5) throw new EngineError(`showdown with ${d.board.length} board cards`);
 
   // Reveal order: last aggressor first, otherwise first seat left of the button.
-  const start = d.lastAggressor ?? ((d.button + 1) % d.seats.length);
+  // An aggressor whose hand was killed (killHand) is not in the showdown, so
+  // it falls to "otherwise". In ordinary play the last aggressor never folds:
+  // only a bet or raise from someone else, who becomes the aggressor, can
+  // make them fold.
+  const aggressor = d.lastAggressor === null ? null : d.seats[d.lastAggressor];
+  const start =
+    aggressor && notFolded(aggressor) ? aggressor.index : (d.button + 1) % d.seats.length;
   const n = d.seats.length;
   const reveals: { seat: SeatIndex; cards: readonly Card[] }[] = [];
   for (let step = 0; step < n; step++) {
@@ -701,7 +707,7 @@ export function applyAction(state: HandState, playerAction: PlayerAction): Apply
 }
 
 /** Declare a seat's hand dead, at once and out of turn — the host removed the
- *  player (HOUSE-RULES #13). Unlike a fold this does not wait for the seat's
+ *  player (HOUSE-RULES #14). Unlike a fold this does not wait for the seat's
  *  turn, and it works on an all-in seat, which cannot fold. Everything else is
  *  a fold: the chips it put in stay in the pot as dead money, any bet it made
  *  still stands for the players behind it, and it can no longer win anything.

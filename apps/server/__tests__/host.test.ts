@@ -182,6 +182,25 @@ describe('removing a player (HOUSE-RULES #14)', () => {
     expect(room.chipsInPlay() + room.removedTotal()).toBe(before);
   });
 
+  test('removing someone else does not give the player on the clock a fresh clock', () => {
+    const room = new Room();
+    room.join('Kev', 0, 200, true);
+    room.join('Ann', 1);
+    room.join('Bob', 2);
+    room.join('Cat', 3);
+    room.do('Kev', { type: 'startHand' });
+    const acting = room.actingName();
+    const deadline = room.view().actionDeadline;
+    vi.advanceTimersByTime(30_000);
+    const victim = ['Ann', 'Bob', 'Cat'].find((n) => n !== acting) as string;
+    room.do('Kev', { type: 'kick', playerId: room.get(victim).id });
+    expect(room.actingName()).toBe(acting);
+    expect(room.view().actionDeadline).toBe(deadline);
+    // And it still expires on time: 15 seconds left, not 45.
+    vi.advanceTimersByTime(15_001);
+    expect(room.view(acting).you?.away).toBe('sittingOut');
+  });
+
   test('heads-up: removing the other player ends the hand, and the pot — their bet too — goes to the one left', () => {
     const room = new Room();
     room.join('Kev', 0, 200, true);
@@ -387,6 +406,27 @@ describe('mucked hands stay hidden (HOUSE-RULES #16)', () => {
     for (const seat of publicHandRecord(loaded).seats) {
       expect(seat.holeCards).toEqual(seat.seat === winner.seat ? winner.holeCards : [null, null]);
     }
+  });
+
+  test('sitting in a seat emptied during the hand cannot show the cards it held', () => {
+    // Review finding: show() read the seat's cards without asking whose they
+    // were. Ann folds and is removed mid-hand; after the hand Bob takes her
+    // seat and presses Show.
+    const room = new Room();
+    room.join('Kev', 0, 200, true);
+    const ann = room.join('Ann', 1);
+    room.join('Cat', 2);
+    room.join('Bob', null);
+    room.do('Kev', { type: 'startHand' });
+    room.do('Kev', { type: 'kick', playerId: ann.id });
+    for (let guard = 0; guard < 30 && room.table.handInProgress(); guard++) {
+      room.act(room.actingName(), { kind: 'fold' });
+    }
+    expect(room.table.handInProgress()).toBe(false);
+    expect(room.do('Bob', { type: 'sit', seat: 1, buyIn: 100 })).toBeNull();
+    expect(room.do('Bob', { type: 'show', cards: 'both' })?.code).toBe('noCards');
+    expect(room.shows).toEqual([]);
+    expect(room.view('Kev').seats[1]?.shownCards).toBeUndefined();
   });
 
   test('a show line cannot reveal a card that was not in that position', () => {

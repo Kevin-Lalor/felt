@@ -1,4 +1,4 @@
-// killHand: the host removed a player mid-hand (HOUSE-RULES #13). Their hand is
+// killHand: the host removed a player mid-hand (HOUSE-RULES #14). Their hand is
 // dead at once — not when the action reaches them, and not on a clock — and
 // every chip they already put in stays in the pot. Everything else carries on
 // exactly as if they had folded.
@@ -146,6 +146,33 @@ describe('killHand — examples', () => {
     const { state: done } = kill(folded, 1);
     expect(done.street).toBe('complete');
     expect(killHand(done, 2)).toEqual({ ok: false, reason: 'handComplete' });
+  });
+
+  test('a killed last aggressor: the showdown starts left of the button, as with no aggressor', () => {
+    // 4-handed, button 0. Checked to the river; seat 2 bets and is killed;
+    // seats 3, 0 and 1 call. Rule: last aggressor first, otherwise the first
+    // seat left of the button — the dead aggressor is not in the showdown.
+    const { state } = newHand({ stacks: [100, 100, 100, 100], button: 0 });
+    let s = act(state, { kind: 'call' }); // 3
+    s = act(s, { kind: 'call' }); // 0
+    s = act(s, { kind: 'call' }); // 1
+    s = act(s, { kind: 'check' }); // 2
+    while (s.street !== 'river') s = act(s, { kind: 'check' });
+    expect(s.actingSeat).toBe(1);
+    s = act(s, { kind: 'check' }); // 1
+    s = act(s, { kind: 'bet', to: chips(10) }); // 2
+    const killed = kill(s, 2);
+    let after = killed.state;
+    const collected: Event[] = [...killed.events];
+    while (after.street !== 'complete') {
+      const result = applyAction(after, { seat: after.actingSeat ?? -1, action: { kind: 'call' } });
+      if (!result.ok) throw new Error(result.reason);
+      after = result.state;
+      collected.push(...result.events);
+    }
+    const showdown = collected.find((e) => e.t === 'showdown');
+    if (!showdown || showdown.t !== 'showdown') throw new Error('no showdown');
+    expect(showdown.reveals.map((r) => r.seat)).toEqual([1, 3, 0]);
   });
 
   test('a killed seat is not shown down', () => {

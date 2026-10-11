@@ -75,6 +75,13 @@ seats dealt in are enough. It checks the board and every card that is shown, and
 mucked. It does not print the cards a mucked seat was dealt — but nothing stops anyone deriving
 them from the revealed seed, and that is deliberate for now; see the note on rule 16.
 
+**Checking a hand you folded.** Hiding mucked hands must not stop the player who held one from
+checking it — most hands end in a fold, and "the server dealt me something other than the seed
+says" is exactly the cheat commit-reveal exists to catch. So: the client remembers your own hole
+cards for each hand (on your device, keyed by the hand's commitment) and the Hands tab shows them
+next to your mucked seat; and `pnpm verify-hand <handId> --seat <n>` prints what the revealed seed
+dealt seat *n* (numbered as on the felt, 1–9). If the two differ, the server lied.
+
 The verifier still reads older, name-keyed records — it falls back to the recorded order and
 prints a note saying the record predates commit chaining.
 

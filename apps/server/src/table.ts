@@ -476,11 +476,14 @@ export class Table {
     // player is not coming back to act. All-in included — killHand, unlike a
     // fold, does not wait for a turn.
     if (dealtIn && this.hand && stillInHand(handSeat?.status)) {
+      // Whoever is on the clock stays on the SAME clock: removing someone
+      // else is no reason to hand them a fresh 45 seconds.
+      const clock = { actingSeat: this.hand.actingSeat, deadline: this.actionDeadline };
       const result = killHand(this.hand, seatIndex);
       if (!result.ok) return err(result.reason, 'Could not remove that hand.');
       this.handActions.push({ seat: seatIndex, action: 'removed by host' });
       this.hand = result.state;
-      this.afterEngineStep(result.events);
+      this.afterEngineStep(result.events, clock);
     }
 
     if (seatIndex !== -1) {
@@ -782,8 +785,13 @@ export class Table {
     return null;
   }
 
-  /** Persist, redact, broadcast, and manage clocks after every engine step. */
-  private afterEngineStep(events: readonly Event[]): void {
+  /** Persist, redact, broadcast, and manage clocks after every engine step.
+   *  `clock` is the clock that was running before the step: if the same seat
+   *  is still to act, it keeps its deadline instead of starting a new one. */
+  private afterEngineStep(
+    events: readonly Event[],
+    clock?: { actingSeat: number | null; deadline: number | null },
+  ): void {
     const hand = this.hand;
     if (!hand) return;
 
@@ -802,7 +810,11 @@ export class Table {
     if (hand.street === 'complete') {
       this.completeHand();
     } else {
-      this.armActionClock();
+      const keep =
+        clock && clock.deadline !== null && clock.actingSeat === hand.actingSeat
+          ? clock.deadline
+          : null;
+      this.armActionClock(keep);
     }
     this.broadcast();
   }
@@ -887,7 +899,14 @@ export class Table {
     if (!hand) return err('noHand', 'Nothing to show.');
     const seatIndex = this.seatOf(player.playerId);
     const seat = hand.seats[seatIndex];
-    if (!seat || seat.holeCards.length !== 2) return err('noCards', 'You had no cards.');
+    // The cards must have been dealt to YOU, not just to the seat you are in
+    // now. A seat emptied during the hand (stood up, left, removed) still
+    // holds its cards once the hand is over; sitting down in it and pressing
+    // Show used to put the last player's mucked hand on everyone's screen —
+    // and, since mucked hands are kept out of history, into the history.
+    if (!seat || seat.playerId !== player.playerId || seat.holeCards.length !== 2) {
+      return err('noCards', 'You had no cards.');
+    }
     if (this.showdownSeats.has(seatIndex)) return err('alreadyShown', 'Your hand was already shown.');
     const cards = seat.holeCards.map(encodeCard);
     const shown =
@@ -920,11 +939,12 @@ export class Table {
 
   // ---------------------------------------------------------------- clock
 
-  private armActionClock(): void {
+  private armActionClock(keepDeadline: number | null = null): void {
     this.clearActionTimer();
     const hand = this.hand;
     if (!hand || hand.actingSeat === null) return;
-    this.actionDeadline = Date.now() + ACTION_CLOCK_MS;
+    this.actionDeadline = keepDeadline ?? Date.now() + ACTION_CLOCK_MS;
+    const clockMs = Math.max(0, this.actionDeadline - Date.now());
     const actingSeat = hand.actingSeat;
     const handNumber = this.handNumber;
     // A player already sitting out still holds cards from the hand they were in
@@ -946,7 +966,7 @@ export class Table {
       const timedOut = this.playerAtSeat(actingSeat);
       if (timedOut) this.setSittingOut(timedOut);
       this.resolveAbsentAction(actingSeat, handNumber);
-    }, ACTION_CLOCK_MS);
+    }, clockMs);
   }
 
   /** Act for a seat that is not going to act for itself: check when it is free,

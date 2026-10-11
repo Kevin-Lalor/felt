@@ -25,7 +25,7 @@ Format: decision, date, and one line of reasoning. Append; don't rewrite history
 | 11 | Sit out while in a hand | Pressing **Sit out** during a live hand finishes that hand normally and takes effect from the next one. Between hands it takes effect at once | 2026-09-20 |
 | 12 | Abandoned seats | A seat is **never** taken from a sitting-out player automatically, however long they are gone. Leaving is a separate, deliberate act | 2026-09-20 |
 | 13 | Host model | **Light host.** The host can **remove** a player and **pause** dealing — nothing more. No buy-in approval, no chip edits, no seat moves. Sits between wireframes 1g (full admin) and 1h (start and end only) | 2026-10-11 |
-| 14 | Removing a player | Host only, and never themselves. A removed player's live hand is **dead at once** — no clock, not when the action reaches them — and every chip they already put in **stays in the pot**, including any part of a bet nobody had called yet. The hand carries on as if they had folded: a bet they made still stands for the players behind it. Their remaining stack leaves the table and is logged publicly in the chip log as **removed by host**. Their connection is closed with a message, and their player token cannot rejoin until the server restarts. That is not a lasting ban: the lasting ban is taking their email off the Cloudflare Access allowlist, and changing the invite code if it may have been passed on | 2026-10-11 |
+| 14 | Removing a player | Host only, and never themselves. A removed player's live hand is **folded immediately** — no clock — and chips already in the pot **stay there**. Their remaining stack leaves the table and is logged publicly in the chip log as **removed by host**. Their connection is closed with a message, and their player token cannot rejoin until the server restarts. That is not a lasting ban: the lasting ban is taking their email off the Cloudflare Access allowlist, and changing the invite code if it may have been passed on. *How the software applies this in the corners is in the notes below — three of those corners are open questions* | 2026-10-11 |
 | 15 | Pausing | The host pauses and resumes. A hand in progress **plays out normally** — clocks are not frozen — and no new hand is dealt until the host resumes. Everyone sees **Paused by host**. Chat, sitting out and coming back all still work | 2026-10-11 |
 | 16 | Mucked hands | Hand history — the API and the Hands tab — shows hole cards **only** for seats that reached showdown, and for cards a player chose to show (one or both). Folded and mucked hands stay hidden | 2026-10-11 |
 | 17 | Rebuys | **Not decided.** Current behaviour stands: a seated player tops up between hands, up to the table maximum, logged publicly. Who approves rebuys is on the list below | 2026-10-11 |
@@ -34,6 +34,19 @@ Format: decision, date, and one line of reasoning. Append; don't rewrite history
 
 Leave these here until decided, then move them up with a date.
 
+- [ ] **Removing a player who is in a pot with the host** (#14). As built, the host can remove an
+      opponent mid-hand while still holding cards in that same hand — e.g. heads-up, remove the
+      player who just shoved, and win the pot without calling. Allow it, refuse it while the host
+      is in the hand, or delay the removal until the hand ends?
+- [ ] **A removed player's bet that nobody can match** (#14). Chips stay in the pot, and the
+      engine's long-standing dead-money rule gives chips above every live player's level to the
+      highest pot someone live can still win. So a short all-in player can win a removed player's
+      big bet they could never have called. Keep that, or return the unmatched part to the table
+      as part of what is removed?
+- [ ] **Does a removed player's bet still have to be called?** (#14). As built, yes — the hand
+      carries on as if they had folded, so the players behind still face their bet, and whoever
+      folds first to a bet from nobody gives the pot away. Keep, or reset the bet to what the live
+      players have matched?
 - [ ] **Who approves rebuys** — today a seated player tops up between hands on their own, up to the
       table maximum, and the chip log shows it. Under the light host (#13) the host approves nothing.
       Keep it that way, or does a rebuy need the host's say-so?
@@ -79,11 +92,19 @@ capped by rule 10 — after that one clock they are out, and the table never wai
 
 ## Notes on rules 13-17
 
-**Why a removed player's chips stay in.** Taking their bet back out would let a removal change who
-wins a pot the other players have already put money into. Leaving it in means removing someone can
-never cost anyone else at the table — the worst it does is hand the pot a little extra. And a hand
-is dead at once, not on a clock, because a player being removed is not a player who is coming back
-to act.
+**How #14 is applied (11 Oct 2026, as built — the open questions above may change it).** The
+removed hand is killed out of turn, all-in included, and from then on the hand plays exactly as
+if that seat had folded: the action stays with whoever was on the clock (on the same clock), a
+bet the removed player made still stands for the players behind them, and every chip they put in
+stays in the pot. Chips above what any live player has matched go to the highest pot a live
+player can win — the same rule the engine has always used for dead money. When removing someone
+leaves nobody else able to bet, the board runs out. A removed seat is never shown down, and the
+showdown then starts with the first live seat left of the button. If every chip in the middle came
+from removed hands (both blinds removed before anyone acted), the players still in play for it.
+
+**Why the decision keeps the chips in.** Taking a bet back out would let a removal change who wins
+a pot the other players have already put money into. And a hand is dead at once, not on a clock,
+because a player being removed is not a player who is coming back to act.
 
 **Removing is not banning.** The server forgets the ban when it restarts, and anyone with the
 invite code can join again as a new player. Cloudflare Access is the real door: take the email off

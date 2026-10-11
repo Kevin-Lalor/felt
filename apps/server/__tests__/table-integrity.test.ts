@@ -400,6 +400,16 @@ describe('verifiability — a record survives a rename and re-derives offline', 
       }
     }
 
+    // A player who folded can ask what the seed dealt their own seat, and
+    // check it against what they saw (--seat counts from 1, like the felt).
+    const folder = record.seats.find((s) => s.finalStatus === 'folded');
+    if (!folder) throw new Error('nobody folded');
+    const forFolder = execSync(
+      `npx tsx tools/verify-hand.ts ${record.handId} "${file}" --seat ${folder.seat + 1}`,
+      { cwd: REPO_ROOT, encoding: 'utf8', stdio: 'pipe' },
+    );
+    expect(forFolder).toContain(`seat ${folder.seat + 1} on the felt was dealt ${folder.holeCards.join(' ')}`);
+
     // And a lie is still caught: claim the shown card was a different one.
     const wrong = record.seats.flatMap((s) => s.holeCards).find((c) => c !== winner.holeCards[0]);
     writeFileSync(

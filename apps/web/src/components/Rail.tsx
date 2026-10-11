@@ -243,6 +243,8 @@ function FairTab() {
         )}
       </p>
       <p className="rail__note">
+        Folded a hand? The Hands tab shows what you held, from your own device. To check it
+        against the shuffle, run <code>pnpm verify-hand &lt;handId&gt; --seat &lt;your seat&gt;</code>.
         To verify a finished hand offline, download{' '}
         <button className="pill" onClick={() => void downloadHistory()}>
           the hand history
@@ -255,6 +257,7 @@ function FairTab() {
 }
 
 function HandsTab() {
+  const myHands = useStore((s) => s.myHands);
   const [hands, setHands] = useState<HistoryHand[]>([]);
   const [error, setError] = useState(false);
   useEffect(() => {
@@ -281,11 +284,18 @@ function HandsTab() {
             <span className="chat__from">{hand.handId ?? `#${hand.handNumber}`}</span>
             board {hand.board.join(' ') || '(no flop)'}
           </p>
-          {hand.seats.map((s) => (
-            <p key={s.seat} className="chat__dealer">
-              {s.name}: {shownCards(s.holeCards)} → {s.stackAfter}
-            </p>
-          ))}
+          {hand.seats.map((s) => {
+            const mine = myHands[hand.commit];
+            const yours = mine?.seat === s.seat ? mine.cards : null;
+            return (
+              <p key={s.seat} className="chat__dealer">
+                {s.name}: {shownCards(s.holeCards)}
+                {/* Only you see this line: it comes from your own device. */}
+                {yours && s.holeCards.some((c) => c === null) && ` (you held ${yours.join(' ')})`} →{' '}
+                {s.stackAfter}
+              </p>
+            );
+          })}
         </div>
       ))}
     </div>
