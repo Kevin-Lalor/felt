@@ -1,303 +1,261 @@
-# Security setup — self-hosted, invite-only
+# Going online — the runbook
 
-Step-by-step for getting your home machine serving the app to exactly nine people and nobody else.
+The exact steps to put FELT on the internet for a handful of friends, as decided on
+**11 Oct 2026**. Follow it top to bottom the first time; the later sections are for game nights.
 
-**Four independent layers.** Any one alone would mostly do the job; together they mean a single
-mistake in one layer isn't a breach.
+**The setup, in one breath.** The server runs on Kevin's computer at home and listens only on that
+computer (`127.0.0.1`). `cloudflared`, also on that computer, holds an outbound connection to
+Cloudflare. Friends open `https://poker.<your domain>`; **Cloudflare Access** stops anyone whose
+email is not on the list, before a single byte reaches home. Behind that, the **invite code** is
+the second lock. No ports are opened on the router. There is no other login system.
 
-| Layer | Stops | Set up in |
+| Layer | Stops | Status |
 |---|---|---|
-| 1. Cloudflare Tunnel + Access | Scanners, the whole internet, anyone not on the email allowlist | Week 0, ~45 min |
-| 2. Passkeys + invite tokens | Anyone who somehow reaches the app without an invite | Week 0, ~3 hrs |
-| 3. Sessions, validation, rate limits | Session theft, malformed input, abuse | Weeks 0 & 3 |
-| 4. In-game trust: audit log, public chip adjustments | Suspicion among friends | Weeks 4–6 |
+| 1. Cloudflare Tunnel + Access (email allowlist, one-time PIN, 30-day login) | The whole internet, scanners, anyone not invited | **Decided — this runbook** |
+| 2. Passkeys, invite tokens, session cookies | — | **NOT PLANNED.** Replaced by Access + the invite code, by decision |
+| 3. The app's own checks: invite code with lockout, rate limits, validation, headers | Mistakes in layer 1, a shared code, a misbehaving friend | **Built** (PR "security hardening", Oct 2026) |
+| 4. In-game trust: public chip log, hand histories, provable shuffle | Suspicion among friends | **Built**, see the end |
+
+Everything below assumes **Windows** on the home computer, because that is what it is. macOS and
+Linux commands are given where they differ.
 
 ---
 
-## Layer 1 — Cloudflare Tunnel (do this instead of port forwarding)
+## 1. Buy the domain
 
-### Why not port forwarding
+The domain has to use **Cloudflare's nameservers** — that is what lets Cloudflare put Access in
+front of it. Two ways:
 
-Opening a port on your router means: your home IP is public and in scanner logs within hours, you
-own TLS certificate renewal forever, a dynamic IP breaks your domain, and every unpatched service
-on your LAN is one misconfiguration away from exposure. There is a free option that removes all of
-that, so take it.
+- **Simplest: buy it from Cloudflare.** Dashboard → **Domain Registration** → **Register
+  Domains**, search for the name. Cloudflare sells at cost (roughly €10 a year for a `.com`) and
+  the nameservers are already right. Cloudflare does **not** sell every ending — many country
+  endings are missing — so if the one you want is not offered, use the second way.
+- **Otherwise buy it anywhere**, then in Cloudflare: **Add a domain** (free plan) → it gives you
+  two nameserver names → at the registrar where you bought it, replace its nameservers with
+  those two. It can take from minutes to a day; Cloudflare emails you when the domain is active.
 
-A tunnel works the other way round: `cloudflared` on your machine makes an **outbound** connection
-to Cloudflare and holds it open. Cloudflare forwards requests down that connection. **You open zero
-inbound ports.** Your home IP never appears in DNS.
+Pick a subdomain for the game. This runbook uses `poker.yourdomain.com`; use your real one
+everywhere it appears.
 
-### Setup
+## 2. Install `cloudflared` on the home computer
 
-**1. Get a domain.** Any registrar, ~€10/yr. Point its nameservers at Cloudflare (free plan).
+Windows (PowerShell):
 
-**2. Install `cloudflared` on the home machine**
-
-```bash
-# Debian/Ubuntu
-curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg \
-  | sudo tee /usr/share/keyrings/cloudflare-main.gpg >/dev/null
-echo "deb [signed-by=/usr/share/keyrings/cloudflare-main.gpg] \
-  https://pkg.cloudflare.com/cloudflared any main" \
-  | sudo tee /etc/apt/sources.list.d/cloudflared.list
-sudo apt update && sudo apt install cloudflared
-
-# macOS
-brew install cloudflared
+```powershell
+winget install --id Cloudflare.cloudflared
 ```
 
-**3. Create and route the tunnel**
+macOS: `brew install cloudflared`. Debian/Ubuntu: Cloudflare's apt repository —
+`https://pkg.cloudflare.com/`.
 
-```bash
-cloudflared tunnel login                      # opens a browser, pick your domain
-cloudflared tunnel create poker               # note the tunnel UUID it prints
-cloudflared tunnel route dns poker poker.yourdomain.com
+## 3. Create the tunnel and point it at the game
+
+The tunnel is created in the dashboard (a "remotely managed" tunnel), so there is no config file
+to keep on the home computer.
+
+1. Cloudflare dashboard → **Zero Trust** → **Networks** → **Tunnels** (newer dashboards say
+   **Networking → Tunnels**) → **Create a tunnel** → type **Cloudflared**.
+2. Name it `felt`. Save.
+3. The next screen shows an install command with a long token in it, for each operating system.
+   Copy the **Windows** one and run it in a PowerShell **opened as Administrator**. It looks like:
+
+   ```powershell
+   cloudflared.exe service install <TOKEN>
+   ```
+
+   That installs `cloudflared` as a Windows service, so it starts with the computer. The dashboard
+   shows the connector as **Healthy** within a minute. **The token is a secret** — anyone with it
+   can run your tunnel. Don't paste it anywhere else, and never into this repo.
+4. Add the route to the game. On the tunnel: **Public Hostname** → **Add a public hostname**
+   (newer dashboards: the **Routes** tab → **Add route** → **Published application**):
+   - Subdomain: `poker` · Domain: `yourdomain.com` · Path: *(empty)*
+   - Service type: **HTTP** · URL: **`localhost:8090`**
+
+   Not 3000 — earlier versions of this doc said 3000, which is wrong. The game listens on **8090**.
+   Saving this creates the DNS record for you.
+
+**Do not stop here and test from your phone.** Until step 4 is done, the hostname is open to the
+whole internet with only the invite code in the way.
+
+## 4. Put Cloudflare Access in front — before anyone gets the link
+
+1. **Turn on one-time PIN as a login method.** Zero Trust → **Settings** → **Authentication** →
+   **Login methods** → **Add new** → **One-time PIN**. Nothing to configure: Cloudflare emails a
+   six-digit code to whoever is trying to log in.
+2. **Create the application.** Zero Trust → **Access** (newer dashboards: **Access controls**) →
+   **Applications** → **Add an application** → **Self-hosted**.
+   - Application name: `FELT`
+   - Domain: subdomain `poker`, domain `yourdomain.com`, path empty — the **whole** hostname,
+     `/ws` included.
+   - **Session duration: 1 month.** This is how long a login lasts before a friend has to type a
+     code again — "a login lasts 30 days" was the decision.
+   - Login methods: **One-time PIN** only. Turn on **Instant Auth** so friends go straight to the
+     email box instead of a menu with one option.
+3. **Add the policy.** In the same application → **Policies** → **Add a policy**:
+   - Policy name: `Friends` · Action: **Allow**
+   - Include → **Emails** → type each friend's address, and your own.
+   - Session duration: **Same as application session timeout**.
+   - Save the policy, then save the application.
+
+Optional but tidy: Zero Trust → **Settings** → **Authentication** → **Global session timeout**,
+set to **1 month** too, so nothing shorter sneaks in.
+
+### Check it before telling anyone
+
+From a phone **on mobile data** (not your home wifi):
+
+1. Open `https://poker.yourdomain.com`. You should see **Cloudflare's** login page, not the game.
+2. Enter an email that is **not** on the list. You must not get in.
+3. Enter yours, type the code from the email. You should land on the FELT join screen.
+
+## 5. Run the game server
+
+On the home computer, in the repo folder (`G:\poker`), after `git pull`:
+
+```powershell
+pnpm install
+pnpm build                        # builds the web app the server serves
+$env:INVITE_CODE = "<invite code>"
+$env:HOST_CODE   = "<host code>"
+pnpm --filter @poker/server start
 ```
 
-**4. Configure** — `~/.cloudflared/config.yml`:
+- **Codes.** Leave both unset the first time: the server makes strong random 16-character ones
+  and prints them. Copy them into the two lines above from then on, so they survive restarts.
+  If you set your own, each must be **at least 12 characters** and the two must differ; a blank,
+  short or matching code stops the server from starting, on purpose.
+- **Keep the server on `127.0.0.1`.** That is the default and it is what makes Access mean
+  something: `cloudflared` is on the same computer, so it is the only thing that needs to reach
+  the game. Setting `HOST=0.0.0.0` lets any device on your home network open the game directly,
+  **skipping the Access login** — only ever do that briefly for testing on the LAN, never on a
+  game night.
+- **Sleep.** The computer must not sleep while hosting (Windows: Settings → System → Power →
+  sleep **Never** while plugged in). Table state is in memory: if the server stops, the table is
+  forgotten. Hand histories survive in `apps/server/data/history.jsonl`.
+- **Friends from one house.** Limits are counted per address, and people on the same wifi share
+  one. If several friends play from the same house, raise `MAX_PLAYERS_PER_IP` (default 4) and
+  `MAX_CONNECTIONS_PER_IP` (default 8) before starting.
 
-```yaml
-tunnel: <UUID from step 3>
-credentials-file: /home/you/.cloudflared/<UUID>.json
+Share `https://poker.yourdomain.com` and the **invite code**. Keep the host code to yourself — it
+makes whoever uses it host.
 
-ingress:
-  - hostname: poker.yourdomain.com
-    service: http://localhost:3000
-    originRequest:
-      noTLSVerify: true          # local hop only; Cloudflare↔browser is still TLS
-      connectTimeout: 10s
-  - service: http_status:404     # everything else is refused
-```
+## 6. The game's WebSocket goes through Access
 
-**5. Run it as a service** so it survives reboots:
+The table runs over a WebSocket at `/ws` on the same hostname. When the page opens it, the browser
+sends the Access login cookie (`CF_Authorization`) with the upgrade request, exactly as it does
+for the page, because it is the same site. Access checks it and lets the socket through. **There
+is no need to exclude `/ws` from Access, and you must not**: earlier versions of this doc
+suggested a bypass "relying on cookie auth" — that auth does not exist, and the bypass would leave
+the invite code as the only lock on the table.
 
-```bash
-sudo cloudflared service install
-sudo systemctl enable --now cloudflared
-sudo systemctl status cloudflared
-```
+**How to confirm it works.** On a laptop, logged in through Access: open the game, press F12 →
+**Network** → filter **WS** → reload. The `/ws` row should show status **101** and stay open, and
+the table should not say *reconnecting…*. In the server window you'll see `"url":"/ws"` lines.
 
-You now have `https://poker.yourdomain.com` with automatic TLS, no open ports, and your home IP
-hidden. Verify: `curl -I https://poker.yourdomain.com` should hit your local server.
+**If it doesn't:**
 
-### Cloudflare Access — the email allowlist, enforced before traffic reaches you
+1. Cloudflare dashboard → your domain → **Network** → **WebSockets** must be **On** (it is by
+   default).
+2. In the tunnel's route the service must be **HTTP** to `localhost:8090` — not HTTPS. If the
+   page itself shows a Cloudflare **502**, try `127.0.0.1:8090` instead of `localhost:8090`.
+3. Check that the cookie exists: F12 → **Application** → **Cookies** → `CF_Authorization` for
+   `poker.yourdomain.com`. If it is missing or expired, reload the page and log in again.
+4. Access is checked when the socket **opens**, not afterwards. A socket that is already open
+   keeps working when a login expires; the next reconnect sends the friend to the login page,
+   which a socket cannot show. If the table says *reconnecting…* for more than a few seconds,
+   **reload the page**.
 
-This is the highest-value 10 minutes in the whole security setup.
+The server pings every socket every 25 seconds, which keeps the connection from going idle — and
+Cloudflare closes idle WebSockets. A socket that stops answering is closed within a minute, and
+the player is sat out as if they had disconnected (HOUSE-RULES #8, #9).
 
-Cloudflare dashboard → **Zero Trust** → **Access** → **Applications** → **Add an application** →
-*Self-hosted*.
+## 7. Adding and removing friends
 
-- Application domain: `poker.yourdomain.com`
-- Session duration: 1 month (so friends aren't re-authenticating every game night)
-- **Policy:** Action *Allow*, Include → **Emails** → paste your nine friends' addresses
-- Identity provider: **One-time PIN** (Cloudflare emails a code — no accounts to create, works
-  for everyone) or Google if they all have Gmail
+**Add a friend.** Zero Trust → Access → Applications → `FELT` → **Policies** → `Friends` → add
+their email under Include → **Emails** → Save. Send them the link and the invite code. Their first
+visit asks for their email and emails them a code; after that they are in for 30 days.
 
-Result: an uninvited request never reaches your machine at all. It's stopped at Cloudflare's edge.
-This is a genuinely different kind of protection from application-level auth — it means a
-zero-day in your Node server is not reachable by a stranger.
+**Remove a friend.** Do all three:
 
-**Bypass path for the API:** WebSockets work fine through Access, but if you hit friction, add a
-second Access application for `poker.yourdomain.com/ws` with a *Service Auth* policy, or exclude
-the WS path and rely on cookie auth there (layer 2 still covers it).
+1. **Off the list.** Same place — delete their email from the policy and Save. They can no longer
+   log in.
+2. **End their current login.** Zero Trust → **My Team** → **Users** → find them →
+   **Revoke session**. Without this, a login they already have keeps working until it expires.
+3. **Off the table, if they are on it.** In the game, Host tab → **Remove** (HOUSE-RULES #14). An
+   already-open socket is not cut by Access, so this is what closes it.
 
-### Alternative: Tailscale
-
-If you want maximum lockdown and don't mind friction: install Tailscale on your machine and have
-friends join your tailnet. The app is then unreachable from the public internet entirely. It's
-more secure and a worse experience — every friend needs the Tailscale app running to play. For a
-casual "tap the link on the couch" home game, **Cloudflare Tunnel + Access is the better trade**.
+**Change the invite code** if they might have shared it: restart the server with a new
+`INVITE_CODE`. Everyone already seated keeps playing; new joins need the new code.
 
 ---
 
-## Layer 2 — Passkeys and invite tokens
+## Layer 2 — passkeys, invite tokens, session cookies: NOT PLANNED
 
-### Why passkeys
+Earlier versions of this document described passkeys, signed single-use invite tokens, an owner
+bootstrap, refresh-token rotation and an allowlist table, as if they were coming. **They are not.**
+On 11 Oct 2026 the decision was Cloudflare Access with an email allowlist and one-time PIN, plus
+the invite code. Access does the identity part — who is allowed in, and logging them in — better
+than this app could, and it does it before the request reaches home. None of that design will be
+built; if the hosting decision ever changes, design it again from the new situation.
 
-Face ID / fingerprint / device PIN, no password to leak or reuse, phishing-resistant by
-construction (the credential is bound to your domain), and on a phone the experience is one tap.
-For a nine-person app there is no reason to build password auth.
+## Layer 3 — what the app itself does
 
-`@simplewebauthn/server` + `@simplewebauthn/browser` handle the protocol. Keep a **magic-link
-email fallback** for the friend with the awkward device — one route, low cost, saves an evening
-of debugging someone's Android.
+All of this is in `apps/server/src` and has tests in `apps/server/__tests__/security.test.ts`.
 
-### The invite flow
+- **The invite code** is required to join the table and to read hand history (sent in a header,
+  never in a URL). It is compared in constant time and case-insensitively.
+- **Wrong codes lock you out.** 8 wrong codes in 15 minutes locks that visitor out for 15 minutes,
+  even with the right code — across the join and the history API together. Behind the tunnel the
+  visitor is identified by `CF-Connecting-IP` (IPv6 by its /64); that header is only believed
+  when the request came from this computer, i.e. through `cloudflared`.
+- **One connection, one player.** At most 8 open connections and 4 players per address (both
+  configurable, see step 5). A connection that hasn't joined within 10 seconds is closed.
+- **Rate limits** per player: chat 3 at once then 1/s; emotes 2 then one per 2 s; skin and seed
+  changes; sitting, standing, sitting out and back, top-ups and shows together 6 then 1/s. And
+  every connection has an overall budget — a flood closes it.
+- **Validation.** Every message is parsed against the protocol before anything else looks at it
+  (hard rule 6). Names are normalised and limited to European Latin letters, so look-alikes from
+  other alphabets are refused, and names that look the same count as the same name. Emotes come
+  from a fixed list.
+- **Headers.** helmet with a Content-Security-Policy (no inline scripts, no `eval`, no framing),
+  `X-Robots-Tag: noindex`, and a `robots.txt` that disallows everything. Query strings are blanked
+  in the server log.
+- **Only the host deals** the first hand or deals early; otherwise the server deals on its own.
 
-```
-You (owner)                     Friend
-    │
-    ├─ POST /admin/invites  { email }
-    │     server: signs a token = HMAC(secret, {email, jti, exp})
-    │             stores {jti, email, exp, usedAt: null}
-    │
-    ├─ send link ──────────────► https://poker.you.com/join?t=<token>
-    │                                │
-    │                                ├─ GET /join?t=…
-    │                                │   server: verify signature, not expired, not used,
-    │                                │           email on allowlist
-    │                                │
-    │                                ├─ passkey registration ceremony
-    │                                │
-    │                                └─ POST /join/complete
-    │                                    server: ATOMICALLY mark token used AND create the
-    │                                            account, in one transaction
-```
+## Layer 4 — in-game trust
 
-**The atomicity matters.** A check-then-use pattern is a race: two simultaneous requests both see
-`usedAt: null` and both create accounts. In SQLite:
-
-```sql
-UPDATE invites SET used_at = ?, used_by = ?
-WHERE jti = ? AND used_at IS NULL;
--- if changes() === 0, the token was already used. Reject. No account created.
-```
-
-Do the account creation in the same transaction. This is the kind of thing the
-`security-reviewer` agent is specifically told to look for.
-
-### Rules for the invite system
-
-- **No public signup route exists.** Not hidden, not behind a feature flag — absent from the
-  router. `POST /register` should 404.
-- Tokens: single-use, 7-day expiry, bound to one email, signed with a secret from env.
-- The **allowlist table** is the authority. Membership is re-checked on every session refresh,
-  not just at login — so when you remove someone, they're out within a minute rather than
-  whenever their session happens to expire.
-- Only the owner role can mint invites. Every invite minted, redeemed, or revoked writes to the
-  audit log.
-
-### Bootstrapping yourself
-
-First run: if the `users` table is empty and `OWNER_EMAIL` is set in env, the server allows one
-passkey registration for that email and assigns the `owner` role. Then that path closes
-permanently (guard on `users.count === 0`). Simple, and it can only ever fire once.
+- **Every chip adjustment is public** in the Chips tab: buy-ins, top-ups, posts, and removals by
+  the host.
+- **Hand histories** are open to the table after each hand, with every card shown down or shown
+  by choice. Mucked hands stay hidden (HOUSE-RULES #16).
+- **The shuffle is provable.** Commit-reveal with every player's seed in it; `pnpm verify-hand`
+  re-derives any hand outside the app (`docs/FAIRNESS.md`).
+- **Nobody sees live hole cards but their owner** — the host included. Every view goes through the
+  same redaction (`apps/server/src/redact.ts`). The one honest exception: the server runs on
+  Kevin's computer, so whoever controls that computer could read its memory. That is what
+  commit-reveal protects against for the *deck*; it cannot hide cards from the machine dealing
+  them.
+- **Disconnects and sitting out** follow HOUSE-RULES #6–#12, written down before they come up.
 
 ---
 
-## Layer 3 — Sessions, transport, validation
+## First-night checklist
 
-### Cookies
-
-```ts
-{
-  httpOnly: true,          // JS can't read it — XSS can't steal the session
-  secure: true,            // HTTPS only
-  sameSite: 'lax',         // CSRF protection; 'lax' keeps the invite link flow working
-  path: '/',
-  maxAge: 60 * 15          // access token: 15 minutes
-}
-```
-
-Refresh token in a separate httpOnly cookie, longer-lived, **rotated on every use**, with **reuse
-detection**: if a refresh token is presented twice, that means it was stolen — invalidate the
-entire session family and force re-authentication. This is standard and worth doing properly.
-
-### WebSocket
-
-Authenticate the upgrade from the **same session cookie**. Never a token in the query string —
-query strings end up in access logs, browser history, and referrer headers.
-
-```ts
-server.on('upgrade', async (req, socket, head) => {
-  const session = await sessionFromCookie(req.headers.cookie)
-  if (!session || !(await isOnAllowlist(session.userId))) {
-    socket.write('HTTP/1.1 401 Unauthorized\r\n\r\n'); socket.destroy(); return
-  }
-  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, session))
-})
-```
-
-### Every inbound message
-
-```ts
-ws.on('message', raw => {
-  // 1. bound the size before parsing anything
-  if (raw.length > 4096) return close(ws, 'oversized')
-
-  // 2. parse — never trust the shape
-  const parsed = ClientMessage.safeParse(JSON.parse(raw))
-  if (!parsed.success) return send(ws, { type: 'error', code: 'malformed' })
-
-  // 3. authorize: does this connection own this seat?
-  if (!ownsSeat(session.userId, parsed.data.seat)) return audit('seat-spoof', session)
-
-  // 4. is it even their turn?
-  if (table.state.actingSeat !== parsed.data.seat) return send(ws, { type:'error', code:'notYourTurn' })
-
-  // 5. only now does the engine see it
-  const result = applyAction(table.state, parsed.data)
-})
-```
-
-**Order matters.** Parse → authorize → turn-check → apply. Never mutate before validating.
-
-### Rate limits
-
-| Surface | Limit |
-|---|---|
-| Login / invite redemption | 5 per 15 min per IP |
-| Chat | 1 msg/sec, 280 chars |
-| Emotes | 1 per 2 sec |
-| Throwables | 1 per 3 sec, 5 per hand |
-| Reconnects | 10 per minute |
-| Avatar upload | 3 per day, 2 MB, re-encoded server-side |
-
-### Headers
-
-`helmet` with a strict CSP: no inline scripts, no `unsafe-eval`, `frame-ancestors 'none'`,
-`object-src 'none'`. Vite's build supports this fine with nonces.
-
-### Avatar uploads (a real attack surface)
-
-Never serve user-uploaded bytes as-is. On upload: verify the content type from the file's magic
-bytes not the header, cap dimensions and size, **re-encode** through `sharp` to a fixed size and
-format, strip all EXIF (it contains GPS), and serve from a path that cannot execute anything.
-
----
-
-## Layer 4 — In-game trust
-
-Security is not only about outsiders. Half the point of this project is that your friends believe
-the game is straight.
-
-- **Every chip adjustment is publicly visible in-app.** Who, when, how much, why. If you top
-  someone up mid-cash-game, everyone sees the entry. This is a database table and a list view,
-  and it is the single most effective anti-suspicion feature you can build.
-- **Audit log** for every admin action, written before the action takes effect, immutable,
-  visible to the owner and summarized publicly.
-- **Hand histories public** to all players after each hand completes. Nothing hidden.
-- **Seats randomized** at table start by default.
-- **No spectator sees hole cards.** An observer sees exactly what a folded player sees. If you
-  ever want a commentary mode, it goes on a delay — never live.
-- **Admins do not get live hole cards either.** If any admin view could expose them, that's a
-  CRITICAL finding. Build the admin panel on top of the same redaction function.
-- **Written disconnect and timebank policy** in `HOUSE-RULES.md`, decided before it comes up in
-  anger.
-
----
-
-## Week 0 checklist
-
-- [ ] Domain bought, nameservers pointed at Cloudflare
-- [ ] `cloudflared` installed and running as a service
-- [ ] `poker.yourdomain.com` serving a hello-world from localhost:3000
-- [ ] Cloudflare Access application created, One-time PIN, nine emails on the policy
-- [ ] Verified: an email **not** on the list is refused at the Cloudflare edge
-- [ ] Secrets generated (`openssl rand -hex 32`) and in `.env`, `.env` in `.gitignore`
-- [ ] Owner bootstrap works; the bootstrap path closes after first use
-- [ ] Passkey registration + login working end to end
-- [ ] Invite token: mint → redeem → second redemption of the same token is rejected
-- [ ] Session cookie flags verified in dev tools (httpOnly, Secure, SameSite)
-- [ ] WebSocket upgrade rejects an unauthenticated connection
-- [ ] Rate limit on the login route verified by hammering it
-- [ ] `pnpm audit` clean, Dependabot enabled on the repo
-- [ ] Removed a test user from the allowlist and confirmed they're kicked within a minute
+- [ ] Domain active on Cloudflare
+- [ ] `cloudflared` installed as a service; tunnel `felt` **Healthy**
+- [ ] Route `poker.yourdomain.com` → HTTP `localhost:8090`
+- [ ] One-time PIN login method on; Access application covers the whole hostname; session 1 month
+- [ ] Policy `Friends` lists every email, yours included
+- [ ] From mobile data: an email **not** on the list is refused; yours gets in
+- [ ] Server started with your own `INVITE_CODE` and `HOST_CODE`, listening on `127.0.0.1`
+- [ ] Laptop on Access: F12 shows `/ws` at **101**; the table is not *reconnecting…*
+- [ ] A friend joins from their phone and plays a hand against a bot (`pnpm bot Mo --code …`)
+- [ ] Computer set not to sleep
 
 ## Ongoing
 
-- `pnpm audit` in CI on every PR; Dependabot PRs reviewed weekly (Saturday session)
-- Rotate `SESSION_SECRET` and `INVITE_TOKEN_SECRET` if a machine is ever compromised — this
-  invalidates all sessions and pending invites, which is the correct behaviour
-- Run `/leak-check` before any PR touching the protocol
-- Full security review pass in week 10, and once a quarter after that
+- Before a game night: `git pull`, `pnpm install`, `pnpm build`, restart the server.
+- Dependabot PRs and `pnpm audit` — review them on the weekly session.
+- If the home computer is ever compromised: change both codes, rotate the tunnel token (delete
+  and recreate the tunnel), and revoke everyone's Access sessions.
+- Run `/leak-check` before any PR touching the protocol.

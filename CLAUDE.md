@@ -71,7 +71,7 @@ pnpm test             # everything
 pnpm test:engine      # fast (<2s) — run this constantly while working in packages/engine
 pnpm test:property    # fast-check, ~60s — run before opening a PR
 pnpm test:leak        # redaction fuzzer, 5000 hands — run before any PR touching the protocol
-pnpm test:e2e         # NOT BUILT: Playwright is configured but there are zero specs, so this passes on nothing
+pnpm test:e2e         # NOT BUILT: no Playwright config and zero specs — it picks up the Vitest files and FAILS
 pnpm typecheck
 pnpm lint
 pnpm build
@@ -96,6 +96,9 @@ apps/server         Fastify (HTTP/auth) + ws (table). Owns authoritative state, 
                     seats, stacks, the live hand — is IN MEMORY and does not survive a
                     restart. SQLite/Drizzle is planned, not built; docs/ARCHITECTURE.md and
                     ROLLBACK.md describe it as though it exists. Do not build on it.
+                    Reached only through a Cloudflare Tunnel with Cloudflare Access in front
+                    (email allowlist + one-time PIN); the invite code is the second lock and
+                    the server listens on 127.0.0.1. No app-level accounts — docs/adr/0002.
 apps/web            React 19 + Vite PWA. Renders redacted state, sends intents. Zustand store.
 tools/verify-hand   Standalone verifier a suspicious friend can run outside the app.
 ```

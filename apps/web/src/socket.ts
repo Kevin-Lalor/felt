@@ -45,7 +45,12 @@ export function connectAndJoin(input: { inviteCode: string; name: string; avatar
 }
 
 function open(): void {
-  if (socket) socket.close();
+  if (socket) {
+    // Detach first: the old socket's close must not schedule a reconnect of
+    // its own on top of this one.
+    socket.onclose = null;
+    socket.close();
+  }
   socket = new WebSocket(wsUrl());
   const store = useStore.getState();
 
@@ -112,6 +117,20 @@ function announceSkinOnce(msg: ServerMessage): void {
   if (!skin) return;
   skinAnnounced = true;
   send({ type: 'setSkin', skin });
+}
+
+/** A phone that locks or switches apps often comes back with a socket that
+ *  died while it was away, and the browser may not say so for a while. The
+ *  server notices within a minute (its heartbeat) and sits you out; this makes
+ *  the client notice the moment the page is looked at again, and rejoin. */
+if (typeof document !== 'undefined') {
+  document.addEventListener('visibilitychange', () => {
+    if (document.visibilityState !== 'visible' || !joinPayload) return;
+    if (!socket || socket.readyState === WebSocket.CLOSED || socket.readyState === WebSocket.CLOSING) {
+      reconnectDelay = 500;
+      open();
+    }
+  });
 }
 
 export function send(msg: ClientMessage): void {
