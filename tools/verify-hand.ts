@@ -3,6 +3,9 @@
 //
 //   pnpm verify-hand <handId|handNumber>          (apps/server/data/history.jsonl)
 //   pnpm verify-hand <handId|handNumber> <file>   (any history JSONL you exported)
+//   ... --seat <n>   also print the cards seat n (1-9, as numbered on the felt)
+//                    was dealt by the revealed seed, so a player who folded can
+//                    check them against what they saw
 //
 // This file deliberately re-implements the derivation instead of importing the
 // server's code — an independent implementation agreeing with the server is the
@@ -25,9 +28,14 @@ type HandRecord = {
   /** Positional since the seat-order fix; older records keyed seeds by name. */
   clientSeeds: ClientSeedRecord[] | Record<string, string>;
   button: number;
-  seats: { seat: number; name: string; holeCards: string[] }[];
+  /** A card is null where the seat mucked (HOUSE-RULES #16): the public
+   *  history never contains it. The server's own file has every card. */
+  seats: { seat: number; name: string; holeCards: (string | null)[] }[];
   board: string[];
 };
+
+/** Cards shown after the hand, appended to the file as their own lines. */
+type ShowLine = { show: { handId: string; seat: number; cards: (string | null)[] } };
 
 const MAX_SEATS = 9;
 const RANKS = ['2', '3', '4', '5', '6', '7', '8', '9', 'T', 'J', 'Q', 'K', 'A'];
@@ -76,18 +84,24 @@ function deriveDeck(serverSeed: string, clientSeeds: string[], handNumber: numbe
 
 // ---------------------------------------------------------------------------
 
-const [, , handArg, fileArg] = process.argv;
-if (!handArg) {
-  console.error('usage: pnpm verify-hand <handNumber> [historyFile]');
+const args = process.argv.slice(2);
+const seatFlag = args.indexOf('--seat');
+const seatArg = seatFlag === -1 ? undefined : args[seatFlag + 1];
+const positional = args.filter((_, i) => seatFlag === -1 || (i !== seatFlag && i !== seatFlag + 1));
+const [handArg, fileArg] = positional;
+if (!handArg || (seatFlag !== -1 && !/^[1-9]$/.test(seatArg ?? ''))) {
+  console.error('usage: pnpm verify-hand <handId|handNumber> [historyFile] [--seat 1-9]');
   process.exit(2);
 }
 const here = fileURLToPath(new URL('.', import.meta.url));
 const file = fileArg ?? join(dirname(here), 'apps', 'server', 'data', 'history.jsonl');
 
-const records = readFileSync(file, 'utf8')
+const lines = readFileSync(file, 'utf8')
   .split('\n')
   .filter((l) => l.trim())
-  .map((l) => JSON.parse(l) as HandRecord);
+  .map((l) => JSON.parse(l) as HandRecord | ShowLine);
+const records = lines.filter((l): l is HandRecord => !('show' in l));
+const shows = lines.filter((l): l is ShowLine => 'show' in l).map((l) => l.show);
 const matches = records.filter((r) => r.handId === handArg || r.handNumber === Number(handArg));
 const record = matches[matches.length - 1];
 if (!record) {
@@ -167,12 +181,42 @@ for (let round = 0; round < 2; round++) {
 }
 const board = deck.slice(pointer, pointer + record.board.length);
 
+// Only the cards that were shown are checked. The deck itself never depended
+// on them — the seeds and the seats dealt in decide it — so a mucked hand
+// costs the check nothing but those two cards. Shows made after the hand are
+// separate lines in a server's own file; merge them in by position.
+let mucked = 0;
 for (const seat of record.seats) {
-  const derived = dealt.get(seat.seat)?.join(' ') ?? '(none)';
+  const derived = dealt.get(seat.seat) ?? [];
+  const recorded = [0, 1].map((i) => {
+    const shown = shows.find(
+      (s) => s.handId === record.handId && s.seat === seat.seat && s.cards[i],
+    );
+    return seat.holeCards[i] ?? shown?.cards[i] ?? null;
+  });
+  if (recorded.every((c) => c === null)) {
+    mucked += 1;
+    console.log(`  ·  ${seat.name} (seat ${seat.seat}) mucked — cards not shown`);
+    continue;
+  }
+  const matches = recorded.every((card, i) => card === null || card === derived[i]);
   check(
-    `${seat.name} (seat ${seat.seat}) was dealt ${seat.holeCards.join(' ')}`,
-    derived === seat.holeCards.join(' '),
-    derived === seat.holeCards.join(' ') ? '' : `derivation says ${derived}`,
+    `${seat.name} (seat ${seat.seat}) was dealt ${recorded.map((c) => c ?? '··').join(' ')}`,
+    matches,
+    matches ? '' : `derivation says ${derived.map((c, i) => (recorded[i] === null ? '··' : c)).join(' ')}`,
+  );
+}
+// A mucked hand is not in the public history (HOUSE-RULES #16), but the
+// player who held it saw it. --seat prints what the revealed seed dealt that
+// seat, so they can hold the server to it. Nothing here is secret: anyone
+// with the revealed seed can derive it — the history just doesn't show it.
+if (seatArg !== undefined) {
+  const onFelt = Number(seatArg);
+  const derived = dealt.get(onFelt - 1); // records count seats from 0
+  console.log(
+    derived
+      ? `  →  by the revealed seed, seat ${onFelt} on the felt was dealt ${derived.join(' ')} — compare with the cards you saw`
+      : `  →  seat ${onFelt} on the felt was not dealt into this hand`,
   );
 }
 check(
@@ -185,6 +229,7 @@ console.log(
   failed
     ? '\n✗ VERIFICATION FAILED — this hand does not match its commitment. Ask your host hard questions.\n'
     : `\n✓ Hand verified. The revealed seed matches the published commitment and re-derives\n` +
-        `  exactly these cards.\n  Seeds: ${seedNote}.\n`,
+        `  exactly these cards.\n  Seeds: ${seedNote}.\n` +
+        (mucked > 0 ? `  ${mucked} seat(s) mucked, so their cards were not checked.\n` : ''),
 );
 process.exit(failed ? 1 : 0);

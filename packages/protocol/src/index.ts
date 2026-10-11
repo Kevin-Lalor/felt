@@ -167,6 +167,10 @@ export const clientMessageSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('setSkin'), skin: playerSkinSchema }),
   /** Post-hand 6-second window: show both, one, or muck (wireframe: show one card). */
   z.object({ type: z.literal('show'), cards: z.enum(['both', 'first', 'second']) }),
+  /** Host only (HOUSE-RULES #14): remove a player. Never yourself. */
+  z.object({ type: z.literal('kick'), playerId: z.string().min(1).max(64) }),
+  /** Host only (HOUSE-RULES #15): stop or restart dealing new hands. */
+  z.object({ type: z.literal('setPaused'), paused: z.boolean() }),
 ]);
 export type ClientMessage = z.infer<typeof clientMessageSchema>;
 
@@ -269,8 +273,53 @@ export const tableViewSchema = z.object({
     })
     .nullable(),
   hostId: z.string().nullable(),
+  /** The host has paused dealing (HOUSE-RULES #15). A running hand finishes. */
+  paused: z.boolean(),
+  /** Everyone at the table, seated or on the rail — what the host's Remove
+   *  list is built from. Names only: nothing here is private. */
+  players: z.array(
+    z.object({
+      playerId: z.string(),
+      name: z.string(),
+      seat: z.number().int().nullable(),
+      connected: z.boolean(),
+      isHost: z.boolean(),
+      /** The host asked to remove them while both were in the hand; it
+       *  happens when the hand ends (HOUSE-RULES #18). */
+      removeAfterHand: z.boolean(),
+    }),
+  ),
 });
 export type TableView = z.infer<typeof tableViewSchema>;
+
+/** A finished hand as anyone at the table may see it (HOUSE-RULES #16). Every
+ *  seat dealt in keeps its place, so the verifier can replay the deal; each of
+ *  its two hole cards is the card if it was shown down or shown by choice, and
+ *  null if it was mucked. Built by publicHandRecord in apps/server/src/redact.ts. */
+export const publicHandRecordSchema = z.object({
+  handId: z.string(),
+  handNumber: z.number().int(),
+  at: z.string(),
+  tableName: z.string(),
+  commit: z.string(),
+  serverSeed: z.string(),
+  clientSeeds: z.array(clientSeedEntrySchema),
+  button: z.number().int(),
+  blinds: z.object({ smallBlind: z.number(), bigBlind: z.number(), ante: z.number() }),
+  seats: z.array(
+    z.object({
+      seat: z.number().int(),
+      name: z.string(),
+      holeCards: z.array(cardSchema.nullable()).length(2),
+      finalStatus: z.string(),
+      stackAfter: z.number(),
+    }),
+  ),
+  board: z.array(cardSchema),
+  actions: z.array(z.object({ seat: z.number().int(), action: z.string(), to: z.number().optional() })),
+  pots: z.array(z.object({ amount: z.number(), eligibleSeats: z.array(z.number().int()) })),
+});
+export type PublicHandRecord = z.infer<typeof publicHandRecordSchema>;
 
 export const handEventSchema = z.object({
   t: z.string(),

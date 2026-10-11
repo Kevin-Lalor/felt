@@ -6,7 +6,8 @@
 
 import type { HandState } from '@poker/engine';
 import { encodeCard, legalActions } from '@poker/engine';
-import type { PlayerSkin, SeatView, TableView } from '@poker/protocol';
+import type { PlayerSkin, PublicHandRecord, SeatView, TableView } from '@poker/protocol';
+import type { HandRecord } from './history.js';
 
 export type SeatOccupant = {
   playerId: string;
@@ -44,6 +45,10 @@ export type TableSnapshot = {
   fairness: TableView['fairness'];
   /** Per-viewer: your own sit-out situation, or null when you are not seated. */
   youFor: (viewerPlayerId: string | null) => TableView['you'];
+  /** The host has paused dealing (HOUSE-RULES #15). */
+  paused: boolean;
+  /** Everyone at the table, for the host's Remove list. Public. */
+  players: TableView['players'];
 };
 
 /** Streets where hole cards are still private. After 'showdown' the engine has
@@ -182,5 +187,57 @@ export function buildView(snapshot: TableSnapshot, viewerPlayerId: string | null
     fairness: snapshot.fairness,
     hostId: snapshot.hostId,
     you: snapshot.youFor(viewerPlayerId),
+    paused: snapshot.paused,
+    players: snapshot.players,
+  };
+}
+
+/** A finished hand as the table may see it (HOUSE-RULES #16, 11 Oct 2026).
+ *
+ *  The record on disk keeps every hole card. What leaves the server keeps a
+ *  card only if its seat reached showdown or its player chose to show it; a
+ *  mucked card is null — absent, not hidden by the UI (hard rule 2). Every
+ *  dealt seat keeps its place, because the verifier replays the deal from the
+ *  list of seats dealt in, never from the cards.
+ *
+ *  Records written before this rule have no showdown flag. For those it is
+ *  worked out from the final statuses: a showdown happened exactly when more
+ *  than one seat ended the hand unfolded, and every unfolded seat was shown.
+ *  ('busted' is unfolded in those records — a seat with no chips left had to
+ *  be all-in, and an all-in seat could not fold.) */
+export function publicHandRecord(record: HandRecord): PublicHandRecord {
+  const legacy = record.seats.every((s) => s.showdown === undefined);
+  const legacyShowdown =
+    legacy && record.seats.filter((s) => s.finalStatus !== 'folded').length > 1;
+  return {
+    handId: record.handId,
+    handNumber: record.handNumber,
+    at: record.at,
+    tableName: record.tableName,
+    commit: record.commit,
+    serverSeed: record.serverSeed,
+    clientSeeds: record.clientSeeds.map((c) => ({ ...c })),
+    button: record.button,
+    blinds: { ...record.blinds },
+    seats: record.seats.map((seat) => {
+      const shownDown = legacy
+        ? legacyShowdown && seat.finalStatus !== 'folded'
+        : seat.showdown === true;
+      // A show only ever reveals the card that was actually in that position.
+      const holeCards = [0, 1].map((i) => {
+        const card = seat.holeCards[i] ?? null;
+        return shownDown || (card !== null && seat.shown?.[i] === card) ? card : null;
+      });
+      return {
+        seat: seat.seat,
+        name: seat.name,
+        holeCards,
+        finalStatus: seat.finalStatus,
+        stackAfter: seat.stackAfter,
+      };
+    }),
+    board: [...record.board],
+    actions: record.actions.map((a) => ({ ...a })),
+    pots: record.pots.map((p) => ({ amount: p.amount, eligibleSeats: [...p.eligibleSeats] })),
   };
 }

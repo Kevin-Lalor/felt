@@ -32,14 +32,41 @@ export type HandRecord = {
   seats: {
     seat: number;
     name: string;
+    /** Every card dealt, kept ON THE SERVER. Never served as-is: the API
+     *  passes records through publicHandRecord (redact.ts) first. */
     holeCards: string[];
     finalStatus: string;
     stackAfter: number;
+    /** Reached showdown, so both cards were shown to the table. Absent on
+     *  records written before 11 Oct 2026 — see publicHandRecord. */
+    showdown?: boolean;
+    /** Cards the player chose to show after the hand, by position. Merged in
+     *  from `show` lines when the history is read; never written in the record. */
+    shown?: (string | null)[];
   }[];
   board: string[];
   actions: { seat: number; action: string; to?: number }[];
   pots: { amount: number; eligibleSeats: number[] }[];
 };
+
+/** A player chose to show cards after the hand (HOUSE-RULES #16). Shows come
+ *  after the hand record is written, so each is its own line in the file. It
+ *  has no handNumber or commit, so an older verifier skips straight past it. */
+export type ShowLine = { show: { handId: string; seat: number; cards: (string | null)[] } };
+
+type Line = HandRecord | ShowLine;
+
+function isShow(line: Line): line is ShowLine {
+  return 'show' in line;
+}
+
+/** Fold a show into its record: a card once shown stays shown. */
+function applyShow(record: HandRecord, show: ShowLine['show']): void {
+  const seat = record.seats.find((s) => s.seat === show.seat);
+  if (!seat) return;
+  const merged = [0, 1].map((i) => show.cards[i] ?? seat.shown?.[i] ?? null);
+  seat.shown = merged;
+}
 
 /** How many hands stay in memory. The API serves at most 200; the rest of the
  *  window keeps a lookup by id for anything from the last few nights cheap. */
@@ -60,9 +87,14 @@ export class HandHistory {
   async load(): Promise<void> {
     const recent: HandRecord[] = [];
     let count = 0;
-    await this.scan((record) => {
+    await this.scan((line) => {
+      if (isShow(line)) {
+        const record = findIn(recent, line.show.handId);
+        if (record) applyShow(record, line.show);
+        return false;
+      }
       count += 1;
-      recent.push(record);
+      recent.push(line);
       if (recent.length > MEMORY_WINDOW) recent.shift();
       return false;
     });
@@ -77,6 +109,14 @@ export class HandHistory {
     this.recordsInFile += 1;
     this.recentHands.push(record);
     if (this.recentHands.length > MEMORY_WINDOW) this.recentHands.shift();
+  }
+
+  /** Record that a player showed cards from a finished hand. */
+  appendShow(show: ShowLine['show']): void {
+    const line: ShowLine = { show };
+    appendFileSync(this.file, JSON.stringify(line) + '\n', 'utf8');
+    const record = findIn(this.recentHands, show.handId);
+    if (record) applyShow(record, show);
   }
 
   /** The last `count` hands, oldest first. */
@@ -105,19 +145,28 @@ export class HandHistory {
   private async findOnDisk(idOrNumber: string): Promise<HandRecord | undefined> {
     const n = Number(idOrNumber);
     let match: HandRecord | undefined;
-    await this.scan((record) => {
-      if (record.handId === idOrNumber) {
-        match = record;
-        return true;
+    let exact = false;
+    await this.scan((line) => {
+      if (isShow(line)) {
+        if (match && line.show.handId === match.handId) applyShow(match, line.show);
+        return false;
       }
-      if (Number.isFinite(n) && record.handNumber === n) match = record;
+      // Shows for a hand always come before the next hand's record, so the
+      // first record after an exact match ends the search.
+      if (exact) return true;
+      if (line.handId === idOrNumber) {
+        match = line;
+        exact = true;
+        return false;
+      }
+      if (Number.isFinite(n) && line.handNumber === n) match = line;
       return false;
     });
     return match;
   }
 
-  /** Visit every record in file order; the visitor returns true to stop. */
-  private async scan(visit: (record: HandRecord) => boolean): Promise<void> {
+  /** Visit every line in file order; the visitor returns true to stop. */
+  private async scan(visit: (line: Line) => boolean): Promise<void> {
     if (!existsSync(this.file)) return;
     const lines = createInterface({
       input: createReadStream(this.file, 'utf8'),
@@ -125,7 +174,7 @@ export class HandHistory {
     });
     for await (const line of lines) {
       if (line.trim().length === 0) continue;
-      if (visit(JSON.parse(line) as HandRecord)) {
+      if (visit(JSON.parse(line) as Line)) {
         lines.close();
         break;
       }

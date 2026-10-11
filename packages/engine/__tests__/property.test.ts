@@ -272,6 +272,20 @@ describe(`property-based invariants (${RUNS} random hands)`, () => {
     );
   });
 
+  test('property: in a hand where nobody is removed, no bet is ever handed back', () => {
+    // HOUSE-RULES #19 only applies to hands with a removed player. Ordinary
+    // dead money — a folded ante, an uncalled big-blind ante — still goes to
+    // the winner exactly as before.
+    fc.assert(
+      fc.property(arbitraryScenario, (sc) => {
+        const { states, events } = playHand(sc);
+        expect(events.some((e) => e.t === 'betReturned')).toBe(false);
+        for (const state of states) expect(state.deadHands).toEqual([]);
+      }),
+      { numRuns: Math.ceil(RUNS / 3) },
+    );
+  });
+
   test('property: a post is dead money — it reaches the pot but never counts as the poster\'s bet', () => {
     fc.assert(
       fc.property(arbitraryScenario, (sc) => {

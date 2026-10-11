@@ -76,6 +76,8 @@ function snapshotFor(state: HandState, playerCount: number): TableSnapshot {
     actionClockMs: 45_000,
     fairness: null,
     youFor: () => null,
+    paused: false,
+    players: [],
   };
 }
 

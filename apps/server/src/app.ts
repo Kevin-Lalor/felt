@@ -11,6 +11,7 @@ import fastifyWebsocket from '@fastify/websocket';
 import { NAME_RULES_MESSAGE, clientMessageSchema } from '@poker/protocol';
 import type { ClientMessage, ServerMessage } from '@poker/protocol';
 import { codeMatches } from './config.js';
+import { publicHandRecord } from './redact.js';
 import type { HandHistory } from './history.js';
 import {
   Buckets,
@@ -203,19 +204,24 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     await reply.code(401).send({ error: 'invite code required' });
   };
 
+  // Every record leaves through publicHandRecord: mucked hole cards are not in
+  // the response at all (HOUSE-RULES #16, hard rule 2).
   app.get('/api/history', { preHandler: requireTableCode }, async () =>
-    history.recent(HISTORY_LIMIT),
+    history.recent(HISTORY_LIMIT).map(publicHandRecord),
   );
 
   app.get('/api/history/:handId', { preHandler: requireTableCode }, async (req, reply) => {
     const { handId } = req.params as { handId: string };
     const record = await history.find(handId);
     if (!record) return reply.code(404).send({ error: 'no such hand' });
-    return record;
+    return publicHandRecord(record);
   });
 
   // Simple fairness dashboard numbers (χ² page grows from here). Same window
   // as /api/history — it used to parse the entire file on every request.
+  // It counts every hand dealt, mucked ones included: a shuffle check that
+  // only looked at hands shown down would be measuring the players, not the
+  // deck. Only totals leave — no hand, no seat.
   app.get('/api/fairness', { preHandler: requireTableCode }, async () => {
     const hands = history.recent(HISTORY_LIMIT);
     let pocketPairs = 0;
@@ -319,6 +325,13 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
           // connection cap. So an address may hold only so many players that
           // are still here (connected) or still holding a seat. Rejoining
           // with your own token is not a new player and is never refused.
+          // Removed by the host: this token is done until the server restarts
+          // (HOUSE-RULES #14). Joining afresh is still possible with the
+          // invite code — the lasting ban is the Cloudflare Access allowlist.
+          if (msg.playerToken !== undefined && table.isTokenBarred(msg.playerToken)) {
+            refuse('kicked', 'The host removed you from this table.');
+            return;
+          }
           const known = msg.playerToken !== undefined && table.knowsToken(msg.playerToken);
           const mine = playersByClient.get(client) ?? new Set<string>();
           for (const id of mine) if (!table.holdsPlace(id)) mine.delete(id);
@@ -334,6 +347,7 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
             isHost,
             existingToken: msg.playerToken,
             send,
+            close: () => socket.close(1008, 'kicked'),
           });
           playerId = player.playerId;
           mine.add(player.playerId);

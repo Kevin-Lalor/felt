@@ -51,6 +51,7 @@ type Draft = {
   actingSeat: SeatIndex | null;
   lastAggressor: SeatIndex | null;
   noRaiseSeats: SeatIndex[];
+  deadHands: SeatIndex[];
   rules: HouseRules;
 };
 
@@ -61,6 +62,7 @@ function toDraft(state: HandState): Draft {
     board: [...state.board],
     pots: state.pots.map((p) => ({ amount: p.amount, eligibleSeats: [...p.eligibleSeats] })),
     noRaiseSeats: [...state.noRaiseSeats],
+    deadHands: [...state.deadHands],
   };
 }
 
@@ -90,6 +92,7 @@ function freeze(d: Draft): HandState {
     actingSeat: d.actingSeat,
     lastAggressor: d.lastAggressor,
     noRaiseSeats: d.noRaiseSeats,
+    deadHands: d.deadHands,
     rules: d.rules,
   };
 }
@@ -238,7 +241,17 @@ function buildPots(d: Draft): Pot[] {
     }
   }
   const lastPot = pots[pots.length - 1];
-  if (!lastPot) throw new EngineError('no pot with an eligible winner — chip accounting bug');
+  if (!lastPot) {
+    // Nothing in the middle that a seat still holding cards can win. In
+    // ordinary play that cannot happen — a seat still in the hand has always
+    // put something in — but the host can remove players (killHand), e.g. both
+    // blinds before anyone else acts. Their chips went back to them
+    // (returnUnmatchedChips, HOUSE-RULES #19), so this pot is empty; it is
+    // still formed so the hand ends the usual way, with a winner.
+    const live = d.seats.filter(notFolded).map((s) => s.index);
+    if (live.length === 0) throw new EngineError('no pot with an eligible winner — chip accounting bug');
+    return [{ amount: c(deadMoney), eligibleSeats: live }];
+  }
   lastPot.amount += deadMoney;
   return pots.map((p) => ({ amount: c(p.amount), eligibleSeats: p.eligibleSeats }));
 }
@@ -258,6 +271,37 @@ const NEXT_STREET: Partial<Record<Street, Street>> = {
 };
 
 const STREET_CARDS: Partial<Record<Street, number>> = { flop: 3, turn: 1, river: 1 };
+
+/** HOUSE-RULES #19 (11 Oct 2026). In a hand where the host removed someone,
+ *  nobody may win chips that no player still holding cards has matched: a
+ *  short all-in player wins at most what they risked from each opponent. So
+ *  every chip above the biggest stake of a seat still in the hand goes back to
+ *  whoever put it in — the removed player's share leaves the table with them;
+ *  a folder's share, an ante or a dead post included, is theirs again.
+ *
+ *  Worked out when the hand ENDS (a fold win, or the showdown), never at the
+ *  end of a street: a live player betting on a later street matches chips an
+ *  earlier folder put in, and those must stay in.
+ *
+ *  Chips above every live stake are ordinary dead money in a hand with no
+ *  removal — a folded big-blind ante — and still go to the winner as they
+ *  always have. That is why this does nothing unless someone was removed.
+ *  Returns whether anything was handed back. */
+function returnUnmatchedChips(d: Draft, events: Event[]): boolean {
+  if (d.deadHands.length === 0) return false;
+  const biggestLiveStake = Math.max(0, ...d.seats.filter(notFolded).map((s) => s.committedThisHand));
+  let any = false;
+  for (const seat of d.seats) {
+    const unmatched = seat.committedThisHand - biggestLiveStake;
+    if (unmatched <= 0) continue;
+    seat.committedThisHand -= unmatched;
+    seat.committedThisStreet = Math.max(0, seat.committedThisStreet - unmatched);
+    seat.stack += unmatched;
+    events.push({ t: 'betReturned', seat: seat.index, amount: c(unmatched) });
+    any = true;
+  }
+  return any;
+}
 
 /** The current betting round is over. Form pots, then either deal the next street
  *  (running out the board when fewer than two seats can still wager) or show down. */
@@ -300,9 +344,21 @@ function showdown(d: Draft, events: Event[]): void {
   d.street = 'showdown';
   d.actingSeat = null;
   if (d.board.length !== 5) throw new EngineError(`showdown with ${d.board.length} board cards`);
+  // The hand is over: hand back what nobody live matched (#19), then re-form
+  // the pots from what is left before anyone is paid.
+  if (returnUnmatchedChips(d, events)) {
+    d.pots = buildPots(d);
+    events.push({ t: 'potsFormed', pots: d.pots });
+  }
 
   // Reveal order: last aggressor first, otherwise first seat left of the button.
-  const start = d.lastAggressor ?? ((d.button + 1) % d.seats.length);
+  // An aggressor whose hand was killed (killHand) is not in the showdown, so
+  // it falls to "otherwise". In ordinary play the last aggressor never folds:
+  // only a bet or raise from someone else, who becomes the aggressor, can
+  // make them fold.
+  const aggressor = d.lastAggressor === null ? null : d.seats[d.lastAggressor];
+  const start =
+    aggressor && notFolded(aggressor) ? aggressor.index : (d.button + 1) % d.seats.length;
   const n = d.seats.length;
   const reveals: { seat: SeatIndex; cards: readonly Card[] }[] = [];
   for (let step = 0; step < n; step++) {
@@ -349,6 +405,7 @@ function showdown(d: Draft, events: Event[]): void {
 
 /** Everyone folded to one seat: award every pot to them without a showdown. */
 function foldWin(d: Draft, events: Event[]): void {
+  returnUnmatchedChips(d, events);
   d.pots = buildPots(d);
   events.push({ t: 'potsFormed', pots: d.pots });
   const winner = d.seats.find(notFolded);
@@ -433,6 +490,7 @@ export function startHand(input: {
     actingSeat: null,
     lastAggressor: null,
     noRaiseSeats: [],
+    deadHands: [],
     rules: input.rules,
   };
 
@@ -687,6 +745,49 @@ export function applyAction(state: HandState, playerAction: PlayerAction): Apply
     d.actingSeat = next.index;
   } else {
     completeStreet(d, events);
+  }
+  return { ok: true, state: freeze(d), events };
+}
+
+/** Declare a seat's hand dead, at once and out of turn — the host removed the
+ *  player (HOUSE-RULES #14). Unlike a fold this does not wait for the seat's
+ *  turn, and it works on an all-in seat, which cannot fold. Everything else is
+ *  a fold: any bet it made still stands for the players behind it (#20), and
+ *  it can no longer win anything. The chips it put in stay in the pot as far
+ *  as a live player matches them; what nobody live matches is handed back
+ *  when the hand ends (#19, returnUnmatchedChips).
+ *
+ *  Nothing here deals or chooses a card — the deck carries on from where it
+ *  was (hard rule 4). */
+export function killHand(state: HandState, seatIndex: SeatIndex): ApplyResult {
+  if (state.street === 'showdown' || state.street === 'complete') {
+    return { ok: false, reason: 'handComplete' };
+  }
+  const d = toDraft(state);
+  const seat = d.seats[seatIndex];
+  if (!seat || !notFolded(seat)) return { ok: false, reason: 'seatNotActive' };
+  if (d.actingSeat === null) throw new EngineError('live hand with nobody to act');
+
+  seat.status = 'folded';
+  seat.hasActedThisStreet = true;
+  d.noRaiseSeats = d.noRaiseSeats.filter((i) => i !== seatIndex);
+  d.deadHands.push(seatIndex);
+  const events: Event[] = [{ t: 'handKilled', seat: seatIndex }];
+
+  if (d.seats.filter(notFolded).length === 1) {
+    foldWin(d, events);
+    return { ok: true, state: freeze(d), events };
+  }
+
+  // The action stays where it was if that seat still has a decision to make.
+  // It may not: killing the only other seat that could bet leaves nobody to
+  // bet against, and killing the seat to act moves the action on as a fold
+  // would. Then the next seat that owes an action acts, or the street is over.
+  const acting = must(d.seats[d.actingSeat], 'acting seat');
+  if (!needsToAct(d, acting)) {
+    const next = nextSeatWhere(d, acting.index, (s) => needsToAct(d, s));
+    if (next) d.actingSeat = next.index;
+    else completeStreet(d, events);
   }
   return { ok: true, state: freeze(d), events };
 }

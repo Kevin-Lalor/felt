@@ -88,6 +88,10 @@ export type HandState = {
   /** Seats that may only call or fold for the rest of this street, because a short
    *  all-in raised the bet without constituting a full raise (house rule 3). */
   readonly noRaiseSeats: readonly SeatIndex[];
+  /** Seats whose hands the host killed (killHand, HOUSE-RULES #14). In a hand
+   *  with any, chips nobody still holding cards has matched go back to
+   *  whoever put them in (#19). Empty in every ordinary hand. */
+  readonly deadHands: readonly SeatIndex[];
   readonly rules: HouseRules;
 };
 
@@ -151,6 +155,12 @@ export type Event =
       readonly amount: Chips;
       readonly hand: HandRank | null;
     }
+  /** The host removed this seat's player mid-hand: the hand is dead, as if
+   *  folded, and every chip it put in stays in the pot (HOUSE-RULES #14). */
+  | { readonly t: 'handKilled'; readonly seat: SeatIndex }
+  /** Chips this seat put in that no player still holding cards matched,
+   *  handed back to its stack (HOUSE-RULES #19). Only in hands with a kill. */
+  | { readonly t: 'betReturned'; readonly seat: SeatIndex; readonly amount: Chips }
   | { readonly t: 'handComplete' };
 
 // ---------- results ----------

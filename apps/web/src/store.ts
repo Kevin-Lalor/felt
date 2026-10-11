@@ -28,6 +28,11 @@ type Store = {
   lastReveal: { handNumber: number; serverSeed: string; commit: string } | null;
   awards: { seat: number; amount: number; label?: string; at: number }[];
   showdownThisHand: boolean;
+  /** Your own hole cards, by the commitment of the hand they were dealt in.
+   *  Mucked hands are not in the public history (HOUSE-RULES #16), so this is
+   *  how you can still see — and check — what you folded. Your data, kept on
+   *  your device; the server sends nothing extra for it. */
+  myHands: Record<string, { seat: number; cards: string[] }>;
   /** Local display preferences. Never sent to the server. */
   prefs: Prefs;
   setPref: (patch: Partial<Prefs>) => void;
@@ -50,6 +55,7 @@ export const useStore = create<Store>((set, get) => ({
   lastReveal: null,
   awards: [],
   showdownThisHand: false,
+  myHands: loadMyHands(),
   prefs: loadPrefs(),
 
   setPref: (patch) => {
@@ -68,9 +74,18 @@ export const useStore = create<Store>((set, get) => ({
         localStorage.setItem('felt.playerToken', msg.playerToken);
         set({ phase: 'table', playerId: msg.playerId, isHost: msg.isHost, tableName: msg.tableName });
         break;
-      case 'state':
+      case 'state': {
         set({ view: msg.view });
+        const commit = msg.view.fairness?.commit;
+        const seat = msg.view.yourSeat;
+        const cards = seat === null ? undefined : msg.view.seats[seat]?.holeCards;
+        if (commit && seat !== null && cards?.length === 2 && !get().myHands[commit]) {
+          const myHands = { ...get().myHands, [commit]: { seat, cards: [...cards] } };
+          set({ myHands });
+          saveMyHands(myHands);
+        }
         break;
+      }
       case 'chat':
         set({ chat: [...get().chat.slice(-199), { kind: 'chat', from: msg.from, seat: msg.seat, text: msg.text, at: msg.at }] });
         break;
@@ -140,6 +155,24 @@ export const useStore = create<Store>((set, get) => ({
               at: Date.now(),
             });
           }
+          if (e.t === 'handKilled' && e.seat !== undefined) {
+            lines.push({
+              kind: 'dealer',
+              from: 'dealer',
+              seat: null,
+              text: `seat ${e.seat + 1} was removed by the host — that hand is dead`,
+              at: Date.now(),
+            });
+          }
+          if (e.t === 'betReturned' && e.seat !== undefined && e.amount !== undefined) {
+            lines.push({
+              kind: 'dealer',
+              from: 'dealer',
+              seat: null,
+              text: `seat ${e.seat + 1} gets ${e.amount} back — nobody still in the hand matched it`,
+              at: Date.now(),
+            });
+          }
           if (e.t === 'streetDealt' && e.cards) {
             lines.push({
               kind: 'dealer',
@@ -167,3 +200,25 @@ export const useStore = create<Store>((set, get) => ({
     }
   },
 }));
+
+const MY_HANDS_KEY = 'felt.myHands';
+/** As many as the history API serves. */
+const MY_HANDS_KEPT = 200;
+
+function loadMyHands(): Record<string, { seat: number; cards: string[] }> {
+  try {
+    const raw = localStorage.getItem(MY_HANDS_KEY);
+    return raw ? (JSON.parse(raw) as Record<string, { seat: number; cards: string[] }>) : {};
+  } catch {
+    return {};
+  }
+}
+
+function saveMyHands(hands: Record<string, { seat: number; cards: string[] }>): void {
+  const kept = Object.fromEntries(Object.entries(hands).slice(-MY_HANDS_KEPT));
+  try {
+    localStorage.setItem(MY_HANDS_KEY, JSON.stringify(kept));
+  } catch {
+    // Storage full or blocked: the record is a convenience, not the proof.
+  }
+}

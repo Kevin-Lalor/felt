@@ -35,9 +35,9 @@ app three times. Pick one per group first — that is a decision for Kevin, not 
 | 1d | Join flow | Three-step column: code, player, seat. Guest by default, account optional | `option` |
 | 1e | Join flow | Modal over the room — you see the table before you're asked for anything | `option` |
 | 1f | Join flow | Seat-first — pick where you're sitting, then who you are | `option` |
-| 1g | Table setup | Tabbed form + live invite card. **Host model A:** full admin — approves buy-ins, kicks, pauses | `option` |
-| 1h | Table setup | Presets first, details only if you want them. **Host model B:** lightweight — creator can start and end, nothing more | `option` |
-| 1i | Table setup | Everything on one sheet, incl. the tournament tab. **Host model C:** no host — settings lock when the table ready-ups | `option` |
+| 1g | Table setup | Tabbed form + live invite card. **Host model A:** full admin — approves buy-ins, kicks, pauses | `option` — host model decided: light host, between 1g and 1h |
+| 1h | Table setup | Presets first, details only if you want them. **Host model B:** lightweight — creator can start and end, nothing more | `option` — host model decided: light host, between 1g and 1h |
+| 1i | Table setup | Everything on one sheet, incl. the tournament tab. **Host model C:** no host — settings lock when the table ready-ups | `superseded` by the light-host decision (11 Oct 2026) |
 | 1j | Table | Tabbed rail right, full-width action bar, sizing chips + slider + type-in always visible | **`approved`** |
 | 1k | Table | Two rails — numbers left, people right, felt dead-centre | `option` |
 | 1l | Table | Max felt — icon rail collapsed, vertical sizing slider by your cards, timer ringing your avatar | `option` |
@@ -82,8 +82,10 @@ One pick needed per group before any of that group gets built:
 
 - [ ] **Landing** — 1a, 1b or 1c
 - [ ] **Join flow** — 1d, 1e or 1f
-- [ ] **Host model** — 1g, 1h or 1i. This is a *rules* decision as much as a layout one; it
-      belongs in `HOUSE-RULES.md` once made
+- [x] **Host model** — **light host**, decided 11 Oct 2026 (`HOUSE-RULES.md` #13–#15). It sits
+      between **1g** and **1h**: the host can remove a player and pause dealing, with no buy-in
+      approval and no admin panel. Neither frame is built as drawn — take 1h's lightness and 1g's
+      remove control, nothing else. 1i (no host) is out
 - [x] **Settings** — **1p**, chosen 19 Sep 2026
 - [ ] **Leaderboard placement** — 2a, 2b or 2c
 - [ ] **Table** — 1j is built, but 1k and 1l are still live alternatives if the layout is ever
@@ -101,6 +103,12 @@ describes. Also missing, and all of them are states where layouts break:
 - [ ] Three-way all-in with two side pots — where do the pot labels go?
 - [ ] Showdown, including show-one-card
 - [x] **A player disconnected or sitting out** — built 20 Sep 2026 with no frame to work from. The seat plate goes dashed and dims to the folded opacity with `SITTING OUT` / `WAITING FOR BB` in place of the stack; the controls live in the action bar (`AwayControls` in `ActionBar.tsx`) because that is where your hand is while a hand you are not in is running. Layout invented, tokens obeyed — **worth a frame if the table is ever revisited**
+- [x] **Host controls (remove a player, pause dealing)** — built 11 Oct 2026 with no frame to
+      work from. A **Host** tab in the rail, shown only to the host, lists the players with a
+      Remove button behind a confirm that spells out the Access allowlist (a removal waiting for the
+      hand to end, HOUSE-RULES #18, reads *Leaving after this hand*); a pause toggle sits at
+      the top of the same tab, and "Paused by host" shows in the felt centre for everyone. Layout
+      invented, tokens obeyed — **worth a frame**
 - [ ] Tournament *in play* — blind clock, level, next level, players remaining. 1i is the setup
       sheet only
 - [ ] The Fair tab / verification view

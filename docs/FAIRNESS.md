@@ -44,7 +44,7 @@ out of that guarantee — the Fair tab and the hand record both say so per seat,
    logic anywhere in the codebase.
 4. **Reveal.** When the hand completes the server broadcasts `serverSeed`. Anyone checks
    `SHA256(revealedSeed) === commit`, then re-runs steps 2–3 and compares against the recorded
-   hand history.
+   hand history: the board, and every hole card that was shown (HOUSE-RULES #16).
 
 One list decides both who is dealt in and whose seed enters the shuffle
 (`Table.participatingSeats()`), so the two can never drift apart.
@@ -59,6 +59,28 @@ are now frozen for the duration of a hand.
 Every record also carries a stable `handId` of the form `${sessionId}-${handNumber}`, because
 `handNumber` restarts at 1 with the server while `history.jsonl` persists. Pass a `handId` to
 verify one hand exactly; a bare number verifies the most recent hand with that number and says so.
+
+### Mucked hands (HOUSE-RULES #16, 11 Oct 2026)
+
+The file on the server keeps every hole card. What leaves the server — `/api/history`, the Hands
+tab, a downloaded history — is the **public record**, built in `apps/server/src/redact.ts`
+(`publicHandRecord`): each dealt seat keeps its place, and its `holeCards` is always two entries,
+each either the card or `null`. A card is there only if that seat reached showdown or its player
+chose to show it; otherwise it is `null`. Shows happen after the record is written, so each one is
+appended to `history.jsonl` as its own line, `{"show":{"handId","seat","cards"}}`, and merged in
+when the history is read.
+
+The verifier never needed recorded hole cards to rebuild the deck: the seeds and the list of
+seats dealt in are enough. It checks the board and every card that is shown, and says which seats
+mucked. It does not print the cards a mucked seat was dealt — but nothing stops anyone deriving
+them from the revealed seed, and that is deliberate for now; see the note on rule 16.
+
+**Checking a hand you folded.** Hiding mucked hands must not stop the player who held one from
+checking it — most hands end in a fold, and "the server dealt me something other than the seed
+says" is exactly the cheat commit-reveal exists to catch. So: the client remembers your own hole
+cards for each hand (on your device, keyed by the hand's commitment) and the Hands tab shows them
+next to your mucked seat; and `pnpm verify-hand <handId> --seat <n>` prints what the revealed seed
+dealt seat *n* (numbered as on the felt, 1–9). If the two differ, the server lied.
 
 The verifier still reads older, name-keyed records — it falls back to the recorded order and
 prints a note saying the record predates commit chaining.
@@ -77,9 +99,11 @@ prints a note saying the record predates commit chaining.
 - A player who distrusts the table can pin their own seed — but a pinned seed was known to the
   server before it committed, so it constrains nothing. Leaving rotation on is the stronger
   choice, and the per-seat `postCommit` flag is there so nobody has to take that on trust.
-- Hand histories are public to everyone at the table, hole cards included, once a hand ends —
-  transparency is the product. They are **not** public to the internet: `/api/history` and
-  `/api/fairness` require the invite code, because the app is meant to sit behind a tunnel.
+- Hand histories are public to everyone at the table once a hand ends, with every card that was
+  shown down or shown by choice. Mucked hands stay out of them (HOUSE-RULES #16) — though the
+  revealed seed makes them derivable, as above. Histories are **not** public to the internet:
+  `/api/history` and `/api/fairness` require the table code, sent in a header, because the app
+  sits behind a tunnel and Cloudflare Access.
 - Commit-reveal proves the server did not change the deck after committing. It does not make the
   server blind to the cards — the host still holds every hole card. Removing the trusted dealer
   entirely needs mental poker, which is far more complexity than a play-money home game warrants.
