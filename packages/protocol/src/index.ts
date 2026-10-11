@@ -29,13 +29,31 @@ export function normaliseName(raw: string): string {
     .trim();
 }
 
-/** Letters must be LATIN — accented ones included, so Seán, Aoife, Zoë and
- *  Björn all work. Other scripts are refused because they hold look-alikes: a
- *  Cyrillic і makes "Kevіn" render exactly like "Kevin", and at a table where
- *  names are how you know who you are playing, that is impersonation. Digits
- *  are ASCII only for the same reason (other scripts have their own digits). */
-const NAME_CHARACTERS = /^(?:(?=\p{Script=Latin})\p{L}|[0-9 _\-'.])+$/u;
-const NAME_HAS_LETTER_OR_DIGIT = /(?:(?=\p{Script=Latin})\p{L}|[0-9])/u;
+/** Letters are the ones European names are written in: plain A–Z, Latin-1
+ *  (Seán, Aoife, Zoë, Björn) and Latin Extended-A (Łukasz, Dvořák), plus the
+ *  Romanian ș and ț. Other scripts are refused because they hold look-alikes:
+ *  a Cyrillic і makes "Kevіn" render exactly like "Kevin", and at a table where
+ *  names are how you know who you are playing, that is impersonation. The rest
+ *  of the Latin script is refused for the same reason — it is full of IPA and
+ *  phonetic letters (ɪ, ɩ, ǀ) that pass for i and l. The dotless ı is refused
+ *  too. Digits are ASCII only, since other scripts have their own. */
+const NAME_LETTER = '[A-Za-z\u00C0-\u00D6\u00D8-\u00F6\u00F8-\u0130\u0132-\u017F\u0218-\u021B]';
+const NAME_CHARACTERS = new RegExp(`^(?:${NAME_LETTER}|[0-9 _\\-'.])+$`, 'u');
+const NAME_HAS_LETTER_OR_DIGIT = new RegExp(`${NAME_LETTER}|[0-9]`, 'u');
+
+/** What a name LOOKS like, for telling whether two names are the same name.
+ *  Case, accents and the shapes that are drawn alike in most fonts (I, l, 1 —
+ *  "AIice" and "Alice"; O and 0; rn and m) all fold together. Only used to
+ *  compare; nobody ever sees a skeleton. */
+export function nameSkeleton(name: string): string {
+  return name
+    .normalize('NFD')
+    .replace(/\p{M}/gu, '')
+    .toLowerCase()
+    .replace(/rn/g, 'm')
+    .replace(/[l1|]/g, 'i')
+    .replace(/0/g, 'o');
+}
 
 export const NAME_RULES_MESSAGE =
   "Names can use letters (accents are fine), digits, spaces and . - ' _ — up to 16 characters.";

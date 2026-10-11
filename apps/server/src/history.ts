@@ -48,6 +48,9 @@ const MEMORY_WINDOW = 2_000;
 export class HandHistory {
   private recentHands: HandRecord[] = [];
   private loaded = false;
+  /** Records in the file. While it is no more than the memory window, memory
+   *  holds every hand there is, and a miss is a miss — no disk read. */
+  private recordsInFile = 0;
 
   constructor(private readonly file: string) {
     mkdirSync(dirname(file), { recursive: true });
@@ -56,18 +59,22 @@ export class HandHistory {
   /** Stream the file once, keeping the most recent hands. Call before serving. */
   async load(): Promise<void> {
     const recent: HandRecord[] = [];
+    let count = 0;
     await this.scan((record) => {
+      count += 1;
       recent.push(record);
       if (recent.length > MEMORY_WINDOW) recent.shift();
       return false;
     });
     // Hands appended while the file was streaming are already in memory.
+    this.recordsInFile += count;
     this.recentHands = [...recent, ...this.recentHands].slice(-MEMORY_WINDOW);
     this.loaded = true;
   }
 
   append(record: HandRecord): void {
     appendFileSync(this.file, JSON.stringify(record) + '\n', 'utf8');
+    this.recordsInFile += 1;
     this.recentHands.push(record);
     if (this.recentHands.length > MEMORY_WINDOW) this.recentHands.shift();
   }
@@ -81,8 +88,21 @@ export class HandHistory {
    *  repeat across server restarts, so the MOST RECENT match wins. */
   async find(idOrNumber: string): Promise<HandRecord | undefined> {
     const inMemory = findIn(this.recentHands, idOrNumber);
-    if (inMemory || !this.loaded) return inMemory;
-    // Older than the memory window: stream the file rather than load it.
+    if (inMemory || !this.loaded || this.recordsInFile <= this.recentHands.length) return inMemory;
+    // Older than the memory window: stream the file rather than load it. One
+    // scan at a time — a burst of lookups for hands that do not exist should
+    // cost one read, not one each.
+    const scan = this.scanning.then(() => this.findOnDisk(idOrNumber));
+    this.scanning = scan.then(
+      () => undefined,
+      () => undefined,
+    );
+    return scan;
+  }
+
+  private scanning: Promise<void> = Promise.resolve();
+
+  private async findOnDisk(idOrNumber: string): Promise<HandRecord | undefined> {
     const n = Number(idOrNumber);
     let match: HandRecord | undefined;
     await this.scan((record) => {

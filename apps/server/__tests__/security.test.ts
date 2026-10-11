@@ -7,19 +7,19 @@
 
 import { afterEach, describe, expect, test } from 'vitest';
 import { execFileSync } from 'node:child_process';
-import { mkdtempSync, writeFileSync } from 'node:fs';
+import { appendFileSync, mkdtempSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import type { FastifyInstance } from 'fastify';
-import { clientMessageSchema, normaliseName, playerNameSchema } from '@poker/protocol';
+import { clientMessageSchema, nameSkeleton, normaliseName, playerNameSchema } from '@poker/protocol';
 import type { ClientMessage, ServerMessage } from '@poker/protocol';
 import { buildApp, redactUrl } from '../src/app.js';
 import type { AppOptions } from '../src/app.js';
 import { ConfigError, MIN_CODE_LENGTH, codeMatches, resolveCodes } from '../src/config.js';
 import { HandHistory } from '../src/history.js';
 import type { HandRecord } from '../src/history.js';
-import { CodeGuard, PlayerRateLimits, clientAddress } from '../src/limits.js';
+import { CodeGuard, PlayerRateLimits, addressKey, clientAddress } from '../src/limits.js';
 import { Table } from '../src/table.js';
 
 const INVITE = 'INVITE-CODE-0001';
@@ -271,7 +271,7 @@ describe('blocker 3: wrong codes lock you out', () => {
 
   test('CF-Connecting-IP is only believed from loopback', () => {
     expect(clientAddress('127.0.0.1', '203.0.113.7')).toBe('203.0.113.7');
-    expect(clientAddress('::1', '2001:db8::1')).toBe('2001:db8::1');
+    expect(clientAddress('::1', '2001:db8::1')).toBe('2001:db8:0:0::/64');
     expect(clientAddress('::ffff:127.0.0.1', '203.0.113.7')).toBe('203.0.113.7');
     // Someone on the LAN writing the header themselves to dodge a lockout.
     expect(clientAddress('192.168.1.40', '203.0.113.7')).toBe('192.168.1.40');
@@ -280,19 +280,45 @@ describe('blocker 3: wrong codes lock you out', () => {
     expect(clientAddress('127.0.0.1', undefined)).toBe('127.0.0.1');
   });
 
-  test('a right code resets the count; the lockout expires', () => {
+  test('the count ages out with its window; the lockout expires', () => {
     let now = 0;
     const guard = new CodeGuard({ maxFailures: 3, windowMs: 1_000, lockoutMs: 5_000 }, () => now);
     guard.fail('a');
     guard.fail('a');
-    guard.succeed('a');
+    now = 1_001; // window over: the two old misses no longer count
     guard.fail('a');
     guard.fail('a');
     expect(guard.lockedFor('a')).toBe(0);
     expect(guard.fail('a')).toBe(true);
     expect(guard.lockedFor('a')).toBe(5_000);
-    now = 5_001;
+    now = 6_002;
     expect(guard.lockedFor('a')).toBe(0);
+  });
+
+  test('a right invite code does not reset the count, so the host code cannot be guessed forever', async () => {
+    // Review finding: guess the host code, use the invite code you already
+    // have to wipe the count, repeat. The lockout was never reached.
+    const server = await start({ lockout });
+    const statuses: number[] = [];
+    for (let round = 0; round < 3; round++) {
+      const guess = await fetch(`${server.http}/api/history`, {
+        headers: { 'x-felt-code': `HOST-GUESS-${round}-XXX` },
+      });
+      statuses.push(guess.status);
+      const legit = await fetch(`${server.http}/api/history`, { headers: { 'x-felt-code': INVITE } });
+      statuses.push(legit.status);
+    }
+    expect(statuses).toEqual([401, 200, 401, 200, 401, 429]);
+  });
+
+  test('IPv6 visitors are counted per /64, not per address', () => {
+    expect(addressKey('2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
+    expect(addressKey('2001:db8:1:2:bbbb:cccc:dddd:eeee')).toBe('2001:db8:1:2::/64');
+    expect(addressKey('2001:0db8:0001:0002::9')).toBe('2001:db8:1:2::/64');
+    expect(addressKey('2001:db8::1')).toBe('2001:db8:0:0::/64');
+    expect(addressKey('::ffff:203.0.113.7')).toBe('203.0.113.7');
+    expect(addressKey('203.0.113.7')).toBe('203.0.113.7');
+    expect(clientAddress('127.0.0.1', '2001:db8:1:2:aaaa::1')).toBe('2001:db8:1:2::/64');
   });
 });
 
@@ -321,6 +347,51 @@ describe('blocker 4: one connection, one player', () => {
     const again = await connect(server.ws);
     sendMsg(again, { type: 'join', inviteCode: INVITE, name: 'Late' });
     await until(again, (m) => m.type === 'welcome');
+  });
+
+  test('join, sit, leave, repeat: an address cannot fill the table with ghost seats', async () => {
+    // Review finding: one socket at a time never trips the connection cap,
+    // and every join without a token is a new player who keeps their seat.
+    const server = await start({ maxPlayersPerClient: 3 });
+    const outcomes: string[] = [];
+    for (let seat = 0; seat < 5; seat++) {
+      const client = await connect(server.ws);
+      sendMsg(client, { type: 'join', inviteCode: INVITE, name: `Ghost${seat}` });
+      const reply = await until(client, (m) => m.type === 'welcome' || m.type === 'error');
+      outcomes.push(reply.type === 'error' ? reply.code : 'welcome');
+      if (reply.type === 'welcome') {
+        sendMsg(client, { type: 'sit', seat, buyIn: 100 });
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      client.socket.close();
+      await client.closed;
+    }
+    expect(outcomes).toEqual(['welcome', 'welcome', 'welcome', 'tooManyPlayers', 'tooManyPlayers']);
+    const seated = server.table.viewFor(null).seats.filter((s) => s.playerId !== null);
+    expect(seated).toHaveLength(3);
+  });
+
+  test('rejoining with your own token is never refused by the player cap', async () => {
+    const server = await start({ maxPlayersPerClient: 1 });
+    const first = await connect(server.ws);
+    sendMsg(first, { type: 'join', inviteCode: INVITE, name: 'Phone' });
+    const welcome = await until(first, (m) => m.type === 'welcome');
+    sendMsg(first, { type: 'sit', seat: 0, buyIn: 100 });
+    await new Promise((r) => setTimeout(r, 30));
+    first.socket.close();
+    await first.closed;
+    const token = welcome.type === 'welcome' ? welcome.playerToken : '';
+    const again = await connect(server.ws);
+    sendMsg(again, { type: 'join', inviteCode: INVITE, name: 'Phone', playerToken: token });
+    await until(again, (m) => m.type === 'welcome');
+  });
+
+  test('a flood of any message closes the connection', async () => {
+    const server = await start();
+    const client = await sitDown(server, 'Flood');
+    for (let i = 0; i < 100; i++) sendMsg(client, { type: 'action', handNumber: 1, action: { kind: 'check' } });
+    await client.closed;
+    expect(client.messages.some(errorCode('flooding'))).toBe(true);
   });
 
   test('a socket that never joins is closed', async () => {
@@ -372,18 +443,31 @@ describe('should-fix: chat, emotes, skins and seeds are rate-limited', () => {
     expect(client.messages.filter((m) => m.type === 'chat').length).toBeLessThanOrEqual(3);
   });
 
-  test.each(['setSkin', 'setClientSeed', 'emote'] as const)('%s floods are refused', async (kind) => {
-    const server = await start();
-    const client = await sitDown(server, 'Flooder');
-    const msg =
-      kind === 'setSkin'
-        ? { type: 'setSkin', skin: { chipStyle: 'neon', chipColour: 'blue' } }
-        : kind === 'setClientSeed'
-          ? { type: 'setClientSeed', seed: 'x' }
-          : { type: 'emote', emote: 'gg' };
-    for (let i = 0; i < 20; i++) sendMsg(client, msg);
-    await until(client, errorCode('slowDown'));
-  });
+  test.each(['setSkin', 'setClientSeed', 'emote', 'sitOut/sitIn'] as const)(
+    '%s floods are refused',
+    async (kind) => {
+      const server = await start();
+      const client = await sitDown(server, 'Flooder');
+      if (kind === 'sitOut/sitIn') {
+        sendMsg(client, { type: 'sit', seat: 0, buyIn: 100 });
+        await new Promise((r) => setTimeout(r, 30));
+      }
+      for (let i = 0; i < 20; i++) {
+        const msg =
+          kind === 'setSkin'
+            ? { type: 'setSkin', skin: { chipStyle: 'neon', chipColour: 'blue' } }
+            : kind === 'setClientSeed'
+              ? { type: 'setClientSeed', seed: 'x' }
+              : kind === 'emote'
+                ? { type: 'emote', emote: 'gg' }
+                : i % 2 === 0
+                  ? { type: 'sitOut' }
+                  : { type: 'sitIn', post: false };
+        sendMsg(client, msg);
+      }
+      await until(client, errorCode('slowDown'));
+    },
+  );
 
   test('the bucket refills', () => {
     let now = 0;
@@ -393,6 +477,7 @@ describe('should-fix: chat, emotes, skins and seeds are rate-limited', () => {
         emote: { burst: 1, everyMs: 1_000 },
         setSkin: { burst: 1, everyMs: 1_000 },
         setClientSeed: { burst: 1, everyMs: 1_000 },
+        seatChange: { burst: 1, everyMs: 1_000 },
       },
       () => now,
     );
@@ -421,17 +506,24 @@ describe('should-fix: chat, emotes, skins and seeds are rate-limited', () => {
 });
 
 describe('should-fix: names', () => {
-  test.each(['Seán', 'Aoife', 'Zoë', 'Björn', "O'Brien", 'Mo 2', 'Ana-María'])('%s is allowed', (name) => {
-    expect(playerNameSchema.safeParse(name).success).toBe(true);
-  });
+  test.each(['Seán', 'Aoife', 'Zoë', 'Björn', "O'Brien", 'Mo 2', 'Ana-María', 'Łukasz', 'Dvořák', 'Ștefan'])(
+    '%s is allowed',
+    (name) => {
+      expect(playerNameSchema.safeParse(name).success).toBe(true);
+    },
+  );
 
   test.each([
-    ['Cyrillic і look-alike', 'Kevіn'],
+    ['Cyrillic і look-alike', 'Kev\u0456n'],
+    ['dotless ı', 'Kev\u0131n'],
+    ['IPA small capital ɪ', 'Kev\u026An'],
+    ['Latin iota ɩ', 'Kev\u0269n'],
+    ['click letter ǀ for l', 'Bi\u01C0\u01C0'],
     ['Greek', 'Κεβιν'],
     ['emoji', 'Kevin 🃏'],
     ['punctuation only', '...'],
-    ['zero-width joiner', 'Ke‍vin'],
-    ['right-to-left override', '‮nivek'],
+    ['zero-width joiner', 'Ke\u200Dvin'],
+    ['right-to-left override', '\u202Enivek'],
     ['too long', 'A'.repeat(17)],
   ])('%s is refused', (_label, name) => {
     expect(playerNameSchema.safeParse(name).success).toBe(false);
@@ -439,9 +531,25 @@ describe('should-fix: names', () => {
 
   test('NFKC folds look-alikes and composes accents', () => {
     expect(normaliseName('Ｋｅｖｉｎ')).toBe('Kevin');
-    expect(normaliseName('Seán')).toBe('Seán');
-    expect(normaliseName('O’Brien')).toBe("O'Brien");
+    expect(normaliseName('Sea\u0301n')).toBe('Seán');
+    expect(normaliseName('O\u2019Brien')).toBe("O'Brien");
     expect(normaliseName('  Mo   Dee ')).toBe('Mo Dee');
+  });
+
+  test('names that look the same are the same name', () => {
+    expect(nameSkeleton('AIice')).toBe(nameSkeleton('Alice'));
+    expect(nameSkeleton('Kevin')).toBe(nameSkeleton('kevin'));
+    expect(nameSkeleton('B0b')).toBe(nameSkeleton('Bob'));
+    expect(nameSkeleton('Seán')).toBe(nameSkeleton('Sean'));
+    expect(nameSkeleton('Kevin')).not.toBe(nameSkeleton('Kevan'));
+  });
+
+  test('a look-alike of a name already at the table gets a number', async () => {
+    const server = await start();
+    await sitDown(server, 'Alice');
+    await sitDown(server, 'AIice');
+    expect(server.table.playerByName('AIice')).toBeUndefined();
+    expect(server.table.playerByName('AIice 2')).toBeDefined();
   });
 
   test('names are unique ignoring case', async () => {
@@ -457,7 +565,7 @@ describe('should-fix: names', () => {
   test('a refused name gets a message that says why', async () => {
     const server = await start();
     const client = await connect(server.ws);
-    sendMsg(client, { type: 'join', inviteCode: INVITE, name: 'Kevіn' });
+    sendMsg(client, { type: 'join', inviteCode: INVITE, name: 'Kev\u0456n' });
     const refusal = await until(client, errorCode('badName'));
     expect(refusal).toMatchObject({ type: 'error' });
   });
@@ -511,6 +619,19 @@ describe('should-fix: history reads', () => {
     expect(recent[199]?.handId).toBe('h-250');
     expect((await history.find('h-3'))?.handNumber).toBe(3);
     expect((await history.find('nope'))).toBeUndefined();
+  });
+
+  test('a hand that is not in memory only touches the disk when memory cannot hold them all', async () => {
+    // Review finding: every lookup for an unknown id used to read the file.
+    const dir = mkdtempSync(join(tmpdir(), 'felt-hist-'));
+    const file = join(dir, 'history.jsonl');
+    writeFileSync(file, JSON.stringify(SAMPLE_HAND) + '\n');
+    const history = new HandHistory(file);
+    await history.load();
+    // Written behind the history's back: a disk read would find it.
+    appendFileSync(file, JSON.stringify({ ...SAMPLE_HAND, handId: 'behind-its-back' }) + '\n');
+    expect(await history.find('behind-its-back')).toBeUndefined();
+    expect((await history.find('abc-1'))?.handId).toBe('abc-1');
   });
 
   test('/api/fairness counts the last 200 hands, not the whole file', async () => {

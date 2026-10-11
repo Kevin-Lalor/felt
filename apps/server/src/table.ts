@@ -15,6 +15,7 @@ import type {
   ServerMessage,
   TableView,
 } from '@poker/protocol';
+import { nameSkeleton } from '@poker/protocol';
 import { commitOf, deriveDeck, generateServerSeed } from './fairness.js';
 import type { SeatOccupant, TableSnapshot } from './redact.js';
 import { buildView } from './redact.js';
@@ -37,6 +38,7 @@ const CHIP_COLOUR_ROTATION: readonly ChipColour[] = [
 const ACTION_CLOCK_MS = 45_000; // HOUSE-RULES: action clock (to be tuned); auto check/fold on expiry
 const NEXT_HAND_DELAY_MS = 6_500;
 const SHOW_WINDOW_MS = 8_000;
+const CHIP_LOG_KEPT = 1_000;
 
 export type Player = {
   playerId: string;
@@ -215,10 +217,10 @@ export class Table {
     return CHIP_COLOUR_ROTATION.find((c) => !taken.has(c)) ?? (CHIP_COLOUR_ROTATION[0] as ChipColour);
   }
 
-  /** Names are unique ignoring case: "kevin" next to "Kevin" is the same name
-   *  to anyone reading the chat. The name has already been NFKC-normalised and
-   *  restricted to Latin script by the protocol, so case is the last way two
-   *  different strings can read as one. */
+  /** Names are unique by how they LOOK: "kevin" next to "Kevin", or "AIice"
+   *  next to "Alice", is the same name to anyone reading the chat. The second
+   *  one gets a number. The protocol has already NFKC-normalised the name and
+   *  kept it to European Latin letters; nameSkeleton folds what is left. */
   private uniqueName(name: string, exceptPlayerId?: string): string {
     const taken = new Set(
       [...this.players.values()]
@@ -879,6 +881,8 @@ export class Table {
 
   private logChips(playerName: string, delta: number, reason: string): void {
     this.chipLog.push({ at: Date.now(), playerName, delta, reason });
+    // Only the last 20 are ever sent; keep a night's worth, not forever.
+    if (this.chipLog.length > CHIP_LOG_KEPT) this.chipLog.splice(0, this.chipLog.length - CHIP_LOG_KEPT);
     this.sendToAll({ type: 'chipLog', entries: this.chipLog.slice(-20) });
   }
 
@@ -969,6 +973,20 @@ export class Table {
     return this.players.get(playerId);
   }
 
+  /** Is this a reconnect token for a player still at the table? */
+  knowsToken(token: string): boolean {
+    for (const player of this.players.values()) {
+      if (tokensMatch(player.token, token)) return true;
+    }
+    return false;
+  }
+
+  /** Still taking up room: connected, or holding a seat while away. */
+  holdsPlace(playerId: string): boolean {
+    const player = this.players.get(playerId);
+    return player !== undefined && (player.connected || this.seatOf(playerId) !== -1);
+  }
+
   /** Seat index for chat attribution, or null for someone on the rail. */
   seatNumberOf(playerId: string): number | null {
     const seat = this.seatOf(playerId);
@@ -977,7 +995,7 @@ export class Table {
 }
 
 function nameKey(name: string): string {
-  return name.toLowerCase();
+  return nameSkeleton(name);
 }
 
 /** Seats whose cards are still live. Folded seats may leave; all-in ones may not. */

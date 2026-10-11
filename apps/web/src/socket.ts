@@ -8,7 +8,13 @@ let reconnectDelay = 500;
 
 /** Errors that mean "this join will never work as sent" — fix it and press Join
  *  again rather than reconnecting into the same refusal. */
-const JOIN_REFUSALS = new Set(['badInvite', 'tooManyAttempts', 'badName', 'tooManyConnections']);
+const JOIN_REFUSALS = new Set([
+  'badInvite',
+  'tooManyAttempts',
+  'badName',
+  'tooManyConnections',
+  'tooManyPlayers',
+]);
 
 function wsUrl(): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';

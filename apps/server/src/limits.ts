@@ -28,9 +28,29 @@ export function clientAddress(
 ): string {
   if (isLoopback(peer) && typeof cfConnectingIp === 'string') {
     const forwarded = cfConnectingIp.trim();
-    if (isIP(forwarded) !== 0) return forwarded;
+    if (isIP(forwarded) !== 0) return addressKey(forwarded);
   }
-  return peer ?? 'unknown';
+  return peer === undefined ? 'unknown' : addressKey(peer);
+}
+
+/** One IPv6 visitor usually holds a whole /64 — every phone on a home network
+ *  gets addresses from it, and anyone can pick a fresh one at will. Counting
+ *  per /128 would give each of those a fresh wrong-code allowance, so IPv6 is
+ *  counted per /64. IPv4 (and IPv4-mapped IPv6) is counted per address. */
+export function addressKey(address: string): string {
+  if (isIP(address) !== 6) return address;
+  const lower = address.toLowerCase();
+  if (lower.startsWith('::ffff:') && isIP(lower.slice(7)) === 4) return lower.slice(7);
+  const [head = '', tail = ''] = lower.split('::');
+  const left = head === '' ? [] : head.split(':');
+  const right = lower.includes('::') ? (tail === '' ? [] : tail.split(':')) : [];
+  const groups = lower.includes('::')
+    ? [...left, ...Array(8 - left.length - right.length).fill('0'), ...right]
+    : left;
+  return `${groups
+    .slice(0, 4)
+    .map((g) => g.replace(/^0+(?=.)/, ''))
+    .join(':')}::/64`;
 }
 
 // ------------------------------------------------------- wrong-code lockout
@@ -53,7 +73,12 @@ type Attempts = { failures: number; windowStart: number; lockedUntil: number };
 /** Counts wrong table codes per client, across the WebSocket join AND the
  *  history API — one budget, so splitting guesses between the two doubles
  *  nothing. Once locked, even the RIGHT code is refused until the lockout
- *  ends; otherwise "locked" would still answer the question being guessed. */
+ *  ends; otherwise "locked" would still answer the question being guessed.
+ *
+ *  A right code does NOT clear the count. It used to, and then any invited
+ *  player could guess the HOST code forever: seven wrong guesses, one request
+ *  with the invite code they already have, repeat. The count simply ages out
+ *  with its window — eight typos in fifteen minutes is generous for a person. */
 export class CodeGuard {
   private readonly clients = new Map<string, Attempts>();
 
@@ -84,12 +109,6 @@ export class CodeGuard {
       return true;
     }
     return false;
-  }
-
-  /** A right code clears the slate: a friend who fat-fingered it twice should
-   *  not carry those two into next week. */
-  succeed(client: string): void {
-    this.clients.delete(client);
   }
 
   /** Forget clients whose window and lockout have both run out, so the map
@@ -129,38 +148,20 @@ export class ConnectionCounter {
   }
 }
 
-// ------------------------------------------------------ per-player message rate
+// ------------------------------------------------------ token buckets
 
 /** A token bucket: `burst` messages at once, then one every `everyMs`. */
 export type Rate = { burst: number; everyMs: number };
 
-export type ThrottledMessage = 'chat' | 'emote' | 'setSkin' | 'setClientSeed';
-
-/** Chat and emotes go to everyone's screen. setSkin and setClientSeed each
- *  rebuild and send the whole table view to every player — a loop of either
- *  was a cheap way to make the table stutter for everybody. The client sends
- *  one seed per hand and one skin per settings change, far inside these. */
-export const DEFAULT_RATES: Record<ThrottledMessage, Rate> = {
-  chat: { burst: 3, everyMs: 1_000 },
-  emote: { burst: 2, everyMs: 2_000 },
-  setSkin: { burst: 4, everyMs: 2_000 },
-  setClientSeed: { burst: 3, everyMs: 2_000 },
-};
-
 type Bucket = { tokens: number; at: number };
 
-/** Keyed by player, not by socket, so reconnecting does not refill the bucket. */
-export class PlayerRateLimits {
+/** Buckets by key. Refill is worked out lazily from the clock on each take. */
+export class Buckets {
   private readonly buckets = new Map<string, Bucket>();
 
-  constructor(
-    private readonly rates: Record<ThrottledMessage, Rate> = DEFAULT_RATES,
-    private readonly now: () => number = Date.now,
-  ) {}
+  constructor(private readonly now: () => number = Date.now) {}
 
-  take(playerId: string, kind: ThrottledMessage): boolean {
-    const rate = this.rates[kind];
-    const key = `${playerId}:${kind}`;
+  take(key: string, rate: Rate): boolean {
     const now = this.now();
     const bucket = this.buckets.get(key) ?? { tokens: rate.burst, at: now };
     const refilled = Math.min(rate.burst, bucket.tokens + (now - bucket.at) / rate.everyMs);
@@ -172,9 +173,54 @@ export class PlayerRateLimits {
     return true;
   }
 
-  forget(playerId: string): void {
+  forget(prefix: string): void {
     for (const key of this.buckets.keys()) {
-      if (key.startsWith(`${playerId}:`)) this.buckets.delete(key);
+      if (key.startsWith(prefix)) this.buckets.delete(key);
     }
+  }
+}
+
+// ------------------------------------------------------ per-player message rate
+
+export type ThrottledMessage = 'chat' | 'emote' | 'setSkin' | 'setClientSeed' | 'seatChange';
+
+/** Chat and emotes go to everyone's screen. Every other throttled message
+ *  rebuilds and sends the whole table view to every player — a loop of any of
+ *  them was a cheap way to make the table stutter for everybody, and a
+ *  sit/stand loop also pushed real entries out of the public chip log. The
+ *  client sends one seed per hand and one skin per settings change, far
+ *  inside these. `seatChange` covers sit, stand up, sit out, I'm back, top up,
+ *  show and leave together: a person presses those a few times a hand at most. */
+export const DEFAULT_RATES: Record<ThrottledMessage, Rate> = {
+  chat: { burst: 3, everyMs: 1_000 },
+  emote: { burst: 2, everyMs: 2_000 },
+  setSkin: { burst: 4, everyMs: 2_000 },
+  setClientSeed: { burst: 3, everyMs: 2_000 },
+  seatChange: { burst: 6, everyMs: 1_000 },
+};
+
+/** Every message on one connection, whatever it is. Generous for a person or
+ *  a bot — an action a turn, a seed a hand — and a ceiling on anything else. */
+export const CONNECTION_RATE: Rate = { burst: 40, everyMs: 100 };
+
+/** Keyed by player, not by socket, so reconnecting does not refill the bucket.
+ *  Joining as a brand-new player does get fresh buckets — that is bounded by
+ *  the cap on players per address, not here. */
+export class PlayerRateLimits {
+  private readonly buckets: Buckets;
+
+  constructor(
+    private readonly rates: Record<ThrottledMessage, Rate> = DEFAULT_RATES,
+    now: () => number = Date.now,
+  ) {
+    this.buckets = new Buckets(now);
+  }
+
+  take(playerId: string, kind: ThrottledMessage): boolean {
+    return this.buckets.take(`${playerId}:${kind}`, this.rates[kind]);
+  }
+
+  forget(playerId: string): void {
+    this.buckets.forget(`${playerId}:`);
   }
 }

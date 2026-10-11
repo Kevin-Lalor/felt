@@ -49,6 +49,7 @@ const table = new Table(
 );
 
 const maxConnections = Number(process.env['MAX_CONNECTIONS_PER_IP'] ?? 8);
+const maxPlayers = Number(process.env['MAX_PLAYERS_PER_IP'] ?? 4);
 
 const app = await buildApp({
   inviteCode: codes.inviteCode,
@@ -60,6 +61,7 @@ const app = await buildApp({
   ...(Number.isInteger(maxConnections) && maxConnections > 0
     ? { maxConnectionsPerClient: maxConnections }
     : {}),
+  ...(Number.isInteger(maxPlayers) && maxPlayers > 0 ? { maxPlayersPerClient: maxPlayers } : {}),
 });
 
 await app.listen({ port: PORT, host: HOST });

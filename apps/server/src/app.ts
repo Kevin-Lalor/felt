@@ -9,10 +9,12 @@ import fastifyHelmet from '@fastify/helmet';
 import fastifyStatic from '@fastify/static';
 import fastifyWebsocket from '@fastify/websocket';
 import { NAME_RULES_MESSAGE, clientMessageSchema } from '@poker/protocol';
-import type { ServerMessage } from '@poker/protocol';
+import type { ClientMessage, ServerMessage } from '@poker/protocol';
 import { codeMatches } from './config.js';
 import type { HandHistory } from './history.js';
 import {
+  Buckets,
+  CONNECTION_RATE,
   CodeGuard,
   ConnectionCounter,
   DEFAULT_LOCKOUT,
@@ -36,6 +38,8 @@ export type AppOptions = {
   lockout?: LockoutPolicy;
   rates?: Record<ThrottledMessage, Rate>;
   maxConnectionsPerClient?: number;
+  /** Players one address may have at the table at once (connected or seated). */
+  maxPlayersPerClient?: number;
   /** How long a socket may stay open without joining. */
   joinTimeoutMs?: number;
 };
@@ -59,12 +63,37 @@ export function redactUrl(url: string): string {
  *  attacker-chosen, so anything that is not a plain host[:port] is ignored. */
 const SAFE_HOST = /^[A-Za-z0-9.-]+(?::\d{1,5})?$|^\[[0-9A-Fa-f:.]+\](?::\d{1,5})?$/;
 
+/** Which rate-limit bucket a message draws on, if any. Actions are not
+ *  throttled: they are turn-checked, and only the seat to act can send one. */
+function throttleFor(type: ClientMessage['type']): ThrottledMessage | null {
+  switch (type) {
+    case 'chat':
+    case 'emote':
+    case 'setSkin':
+    case 'setClientSeed':
+      return type;
+    case 'sit':
+    case 'standUp':
+    case 'sitOut':
+    case 'sitIn':
+    case 'topUp':
+    case 'show':
+    case 'leave':
+      return 'seatChange';
+    default:
+      return null;
+  }
+}
+
 export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
   const { inviteCode, hostCode, tableName, table, history } = options;
   const guard = new CodeGuard(options.lockout ?? DEFAULT_LOCKOUT);
   const rateLimits = new PlayerRateLimits(options.rates ?? DEFAULT_RATES);
   const connections = new ConnectionCounter(options.maxConnectionsPerClient ?? 8);
   const joinTimeoutMs = options.joinTimeoutMs ?? 10_000;
+  const maxPlayersPerClient = options.maxPlayersPerClient ?? 4;
+  /** Which players each address has created, to enforce the cap above. */
+  const playersByClient = new Map<string, Set<string>>();
 
   const app = Fastify({
     logger:
@@ -166,7 +195,6 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
     const header = req.headers[CODE_HEADER];
     const code = typeof header === 'string' ? header : '';
     if (code.length > 0 && (codeMatches(code, inviteCode) || codeMatches(code, hostCode))) {
-      guard.succeed(client);
       return;
     }
     // A request with no code at all is not a guess, so it costs nothing. A
@@ -231,12 +259,19 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
       }
       let counted = true;
 
+      // Every message, of any kind, draws on one budget per connection.
+      const budget = new Buckets();
+
       // A socket that never joins is holding a slot for nothing.
       const joinTimer = setTimeout(() => {
         if (playerId === null) refuse('joinTimeout', 'Join with the invite code first.');
       }, joinTimeoutMs);
 
       socket.on('message', (raw: Buffer | string) => {
+        if (!budget.take('all', CONNECTION_RATE)) {
+          refuse('flooding', 'Too many messages. Reconnect to carry on.');
+          return;
+        }
         let json: unknown;
         try {
           json = JSON.parse(String(raw));
@@ -278,7 +313,19 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
             refuse('badInvite', 'Wrong invite code.');
             return;
           }
-          guard.succeed(client);
+          // One person opening join after join — each a new player with fresh
+          // rate limits, each sitting in a seat it then abandons — could fill
+          // the table with ghosts one socket at a time, never tripping the
+          // connection cap. So an address may hold only so many players that
+          // are still here (connected) or still holding a seat. Rejoining
+          // with your own token is not a new player and is never refused.
+          const known = msg.playerToken !== undefined && table.knowsToken(msg.playerToken);
+          const mine = playersByClient.get(client) ?? new Set<string>();
+          for (const id of mine) if (!table.holdsPlace(id)) mine.delete(id);
+          if (!known && mine.size >= maxPlayersPerClient) {
+            refuse('tooManyPlayers', 'Too many players from your network are already at this table.');
+            return;
+          }
           clearTimeout(joinTimer);
           const player = table.join({
             name: msg.name,
@@ -289,6 +336,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
             send,
           });
           playerId = player.playerId;
+          mine.add(player.playerId);
+          playersByClient.set(client, mine);
           send({
             type: 'welcome',
             playerId: player.playerId,
@@ -305,13 +354,8 @@ export async function buildApp(options: AppOptions): Promise<FastifyInstance> {
           return;
         }
 
-        if (
-          (msg.type === 'chat' ||
-            msg.type === 'emote' ||
-            msg.type === 'setSkin' ||
-            msg.type === 'setClientSeed') &&
-          !rateLimits.take(playerId, msg.type)
-        ) {
+        const throttle = throttleFor(msg.type);
+        if (throttle !== null && !rateLimits.take(playerId, throttle)) {
           send({ type: 'error', code: 'slowDown', message: 'Slow down a little.' });
           return;
         }
