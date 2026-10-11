@@ -24,11 +24,22 @@ Format: decision, date, and one line of reasoning. Append; don't rewrite history
 | 10 | Sat out mid-hand | Any remaining decisions in that hand resolve **immediately** on the usual policy — check when it is free, fold when facing a bet — with no clock. The table waits for you once per absence, never twice | 2026-09-20 |
 | 11 | Sit out while in a hand | Pressing **Sit out** during a live hand finishes that hand normally and takes effect from the next one. Between hands it takes effect at once | 2026-09-20 |
 | 12 | Abandoned seats | A seat is **never** taken from a sitting-out player automatically, however long they are gone. Leaving is a separate, deliberate act | 2026-09-20 |
+| 13 | Host model | **Light host.** The host can **remove** a player and **pause** dealing — nothing more. No buy-in approval, no chip edits, no seat moves. Sits between wireframes 1g (full admin) and 1h (start and end only) | 2026-10-11 |
+| 14 | Removing a player | Host only, and never themselves. A removed player's live hand is **dead at once** — no clock, not when the action reaches them — and every chip they already put in **stays in the pot**, including any part of a bet nobody had called yet. The hand carries on as if they had folded: a bet they made still stands for the players behind it. Their remaining stack leaves the table and is logged publicly in the chip log as **removed by host**. Their connection is closed with a message, and their player token cannot rejoin until the server restarts. That is not a lasting ban: the lasting ban is taking their email off the Cloudflare Access allowlist, and changing the invite code if it may have been passed on | 2026-10-11 |
+| 15 | Pausing | The host pauses and resumes. A hand in progress **plays out normally** — clocks are not frozen — and no new hand is dealt until the host resumes. Everyone sees **Paused by host**. Chat, sitting out and coming back all still work | 2026-10-11 |
+| 16 | Mucked hands | Hand history — the API and the Hands tab — shows hole cards **only** for seats that reached showdown, and for cards a player chose to show (one or both). Folded and mucked hands stay hidden | 2026-10-11 |
+| 17 | Rebuys | **Not decided.** Current behaviour stands: a seated player tops up between hands, up to the table maximum, logged publicly. Who approves rebuys is on the list below | 2026-10-11 |
 
 ## To decide before launch
 
 Leave these here until decided, then move them up with a date.
 
+- [ ] **Who approves rebuys** — today a seated player tops up between hands on their own, up to the
+      table maximum, and the chip log shows it. Under the light host (#13) the host approves nothing.
+      Keep it that way, or does a rebuy need the host's say-so?
+- [ ] **When the server seed is revealed** — see the note on rule 16 below. Revealing it after every
+      hand is what lets anyone verify the shuffle, and it is also what lets anyone reconstruct a
+      mucked hand. Unchanged for now, on purpose
 - [ ] **Action clock** — how long to act? (suggested: 25s + 3× 30s timebank chips per session)
 - [ ] **Rebuy / top-up in cash** — any time, or only between hands? Max stack cap?
 - [ ] **Run it twice** on all-ins — offered? Unanimous consent required?
@@ -65,6 +76,26 @@ plus the big blind dead is one orbit's worth, which is what everyone else pays.
 table has to wait, and it is worth it: a live hand belongs to the player who was dealt it, and
 folding it the instant their wifi drops would be worse than 45 seconds of quiet. The cost is
 capped by rule 10 — after that one clock they are out, and the table never waits for them again.
+
+## Notes on rules 13-17
+
+**Why a removed player's chips stay in.** Taking their bet back out would let a removal change who
+wins a pot the other players have already put money into. Leaving it in means removing someone can
+never cost anyone else at the table — the worst it does is hand the pot a little extra. And a hand
+is dead at once, not on a clock, because a player being removed is not a player who is coming back
+to act.
+
+**Removing is not banning.** The server forgets the ban when it restarts, and anyone with the
+invite code can join again as a new player. Cloudflare Access is the real door: take the email off
+the allowlist (docs/SECURITY-SETUP.md), and change the invite code if it may have been shared.
+
+**What "hidden" means for a mucked hand (rule 16).** The fairness protocol publishes the server
+seed after each hand (docs/FAIRNESS.md). Together with the players' seeds, which are public, that
+seed lets anyone running `pnpm verify-hand` re-derive the whole deck — and with it every card
+dealt, mucked hands included. So rule 16 decides what the **app shows**, not what is knowable: a
+friend who wants to work out a mucked hand can, with the verifier and some effort. Keeping it out
+of the history stops it being one tap away. Whether to reveal the seed later (say, at the end of
+the session) is a separate decision, listed above, and has not been made.
 
 ## Voided hands
 
