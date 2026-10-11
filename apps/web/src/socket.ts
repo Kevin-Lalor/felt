@@ -6,6 +6,10 @@ let socket: WebSocket | null = null;
 let joinPayload: ClientMessage | null = null;
 let reconnectDelay = 500;
 
+/** Errors that mean "this join will never work as sent" — fix it and press Join
+ *  again rather than reconnecting into the same refusal. */
+const JOIN_REFUSALS = new Set(['badInvite', 'tooManyAttempts', 'badName', 'tooManyConnections']);
+
 function wsUrl(): string {
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   return `${proto}://${location.host}/ws`;
@@ -52,6 +56,10 @@ function open(): void {
       return; // never act on a malformed frame
     }
     store.applyServerMessage(parsed);
+    // A refused join must not be retried automatically. Reconnecting with the
+    // same wrong code every few seconds would burn through the server's
+    // wrong-code allowance and lock out everyone on this network.
+    if (parsed.type === 'error' && JOIN_REFUSALS.has(parsed.code)) joinPayload = null;
     rotateSeedIfNeeded();
     announceSkinOnce(parsed);
   };
